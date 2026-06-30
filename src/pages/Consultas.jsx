@@ -10,6 +10,8 @@ import {
   finalizeDecimal,
 } from "../utils/formRules";
 import Swal from "sweetalert2";
+import { isDemoMode } from "../utils/demoMode";
+import { demoClientes } from "../mock/demoData";
 
 const API_URL = "http://localhost:5000";
 
@@ -450,6 +452,13 @@ export default function ConsultaForm({ onSave }) {
           navigate("/", { replace: true });
           return;
         }
+
+
+        if (isDemoMode) {
+  setMascotas(demoMascotas);
+  setLoading(false);
+  return;
+}
 
         const res = await fetch(`${API_URL}/api/mascotas`, {
           headers: { Authorization: `Bearer ${token}` },

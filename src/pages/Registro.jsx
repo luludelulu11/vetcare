@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Registro.css";
 import Select from "react-select";
+import { isDemoMode } from "../utils/demoMode";
+import { demoClientes } from "../mock/demoData";
 
 const API_URL = "http://localhost:5000";
 
@@ -39,6 +41,13 @@ export default function Registro() {
     if (digits.length <= 6) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
     return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
   };
+
+
+  if (isDemoMode) {
+  setRegistro(demoRegsitro);
+  setLoading(false);
+  return;
+}
 
   useEffect(() => {
     const loadData = async () => {

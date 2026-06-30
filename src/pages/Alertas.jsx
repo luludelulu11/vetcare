@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styles from "./alertas.module.css";
 import Swal from "sweetalert2";
+import { isDemoMode } from "../utils/demoMode";
+import { demoClientes } from "../mock/demoData";
 
 function formatDate(dateString) {
   if (!dateString) return "—";
@@ -132,6 +134,12 @@ export default function Alertas() {
           navigate("/", { replace: true });
           return;
         }
+
+        if (isDemoMode) {
+  setAlertas(demoAlertas);
+  setLoading(false);
+  return;
+}
 
         const response = await fetch("http://localhost:5000/api/alertas", {
           headers: {

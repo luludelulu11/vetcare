@@ -7,6 +7,8 @@ import {
   validators,
 } from "../utils/formRules";
 import Swal from "sweetalert2";
+import { isDemoMode } from "../utils/demoMode";
+import { demoClientes } from "../mock/demoData";
 
 const API_URL = "http://localhost:5000";
 
@@ -146,6 +148,12 @@ console.log("cedula digits:", String(form.cedula).replace(/\D/g, "").length);
         telefono: form.telefono,
         telefono2: form.telefono2,
       };
+
+      if (isDemoMode) {
+  setClientes(demoClientes);
+  setLoading(false);
+  return;
+}
 
       const response = await fetch(`${API_URL}/api/clientes`, {
         method: "POST",

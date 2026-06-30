@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./historial.css";
+import { isDemoMode } from "../utils/demoMode";
+import { demoClientes } from "../mock/demoData";
 
 const API_URL = "http://localhost:5000";
 
@@ -26,6 +28,12 @@ export default function HistorialClinico() {
           navigate("/", { replace: true });
           return;
         }
+
+        if (isDemoMode) {
+  setMascotasResumen(demoMascotas);
+  setLoading(false);
+  return;
+}
 
         const mascotasRes = await fetch(`${API_URL}/api/mascotas`, {
           headers: {

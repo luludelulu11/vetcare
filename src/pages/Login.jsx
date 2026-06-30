@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import "./login.css";
 import { User, Lock, ShieldCheck } from "lucide-react";
+import { isDemoMode } from "../utils/demoMode";
+import { demoUser } from "../mock/demoData";
 
 
 
@@ -15,6 +17,13 @@ export default function Login() {
   const [error, setError] = useState("");
   const API_URL = import.meta.env.VITE_API_URL || "";
   const passType = useMemo(() => (showPass ? "text" : "password"), [showPass]);
+
+  if (isDemoMode) {
+  localStorage.setItem("token", "demo-token");
+  localStorage.setItem("user", JSON.stringify(demoUser));
+  navigate("/menu", { replace: true });
+  return;
+}
 
   const handleSubmit = async (e) => {
     e.preventDefault();
