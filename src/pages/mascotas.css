@@ -155,11 +155,7 @@ div {
 }
 
 
-.ms-field input{
-  background-color: #f7fbfc;
-}
-
-
+.ms-field input,
 .ms-field select,
 .ms-field textarea {
   width: 100%;
