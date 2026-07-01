@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./mascotas.css";
+import { Search, PawPrint, Calendar, Tag, Scale } from "lucide-react";
 import {
   applyFieldFormatting,
   validateFields,
@@ -393,32 +394,35 @@ export default function Mascotas() {
               </label>
 
               <div className="ms-search-wrap" ref={clienteSearchRef}>
-                <input
-                  id="clienteSearch"
-                  name="clienteSearch"
-                  type="text"
-                  placeholder={
-                    loadingClientes ? "Cargando usuarios..." : "Buscar usuario..."
-                  }
-                  value={clienteSearch}
-                  onChange={(e) => {
-                    setClienteSearch(e.target.value);
-                    setShowClienteResults(true);
-                    setHighlightedClienteIndex(-1);
-                    setForm((prev) => ({
-                      ...prev,
-                      clienteId: "",
-                    }));
-                    setFieldErrors((prev) => ({
-                      ...prev,
-                      clienteId: "",
-                    }));
-                  }}
-                  onFocus={() => setShowClienteResults(true)}
-                  onKeyDown={handleClienteSearchKeyDown}
-                  autoComplete="off"
-                  disabled={loadingClientes}
-                />
+                <div className="ms-input-wrap">
+                  <Search size={20} />
+                  <input
+                    id="clienteSearch"
+                    name="clienteSearch"
+                    type="text"
+                    placeholder={
+                      loadingClientes ? "Cargando usuarios..." : "Buscar usuario..."
+                    }
+                    value={clienteSearch}
+                    onChange={(e) => {
+                      setClienteSearch(e.target.value);
+                      setShowClienteResults(true);
+                      setHighlightedClienteIndex(-1);
+                      setForm((prev) => ({
+                        ...prev,
+                        clienteId: "",
+                      }));
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        clienteId: "",
+                      }));
+                    }}
+                    onFocus={() => setShowClienteResults(true)}
+                    onKeyDown={handleClienteSearchKeyDown}
+                    autoComplete="off"
+                    disabled={loadingClientes}
+                  />
+                </div>
 
                 {showClienteResults && !loadingClientes && (
                   <div className="ms-search-results">
@@ -458,14 +462,17 @@ export default function Mascotas() {
               <label htmlFor="nombre">
                 Nombre <span className="req">*</span>
               </label>
-              <input
-                id="nombre"
-                name="nombre"
-                type="text"
-                placeholder="Nombre"
-                value={form.nombre}
-                onChange={handleChange}
-              />
+              <div className="ms-input-wrap">
+                <PawPrint size={20} />
+                <input
+                  id="nombre"
+                  name="nombre"
+                  type="text"
+                  placeholder="Nombre"
+                  value={form.nombre}
+                  onChange={handleChange}
+                />
+              </div>
               {fieldErrors.nombre && (
                 <small className="cl-error-text">{fieldErrors.nombre}</small>
               )}
@@ -477,17 +484,20 @@ export default function Mascotas() {
               <label htmlFor="edad">
                 Edad <span className="req">*</span>
               </label>
-              <input
-                id="edad"
-                name="edad"
-                type="text"
-                placeholder="Edad"
-                value={form.edad ? `${form.edad} años` : ""}
-                onChange={(e) => {
-                  const clean = e.target.value.replace(" años", "");
-                  handleChange({ target: { name: "edad", value: clean } });
-                }}
-              />
+              <div className="ms-input-wrap">
+                <Calendar size={20} />
+                <input
+                  id="edad"
+                  name="edad"
+                  type="text"
+                  placeholder="Edad"
+                  value={form.edad ? `${form.edad} años` : ""}
+                  onChange={(e) => {
+                    const clean = e.target.value.replace(" años", "");
+                    handleChange({ target: { name: "edad", value: clean } });
+                  }}
+                />
+              </div>
               {fieldErrors.edad && (
                 <small className="cl-error-text">{fieldErrors.edad}</small>
               )}
@@ -497,14 +507,17 @@ export default function Mascotas() {
               <label htmlFor="raza">
                 Raza <span className="req">*</span>
               </label>
-              <input
-                id="raza"
-                name="raza"
-                type="text"
-                placeholder="Raza"
-                value={form.raza}
-                onChange={handleChange}
-              />
+              <div className="ms-input-wrap">
+                <Tag size={20} />
+                <input
+                  id="raza"
+                  name="raza"
+                  type="text"
+                  placeholder="Raza"
+                  value={form.raza}
+                  onChange={handleChange}
+                />
+              </div>
               {fieldErrors.raza && (
                 <small className="cl-error-text">{fieldErrors.raza}</small>
               )}
@@ -535,17 +548,20 @@ export default function Mascotas() {
               <label htmlFor="peso">
                 Peso <span className="req">*</span>
               </label>
-              <input
-                id="peso"
-                name="peso"
-                type="text"
-                placeholder="Peso"
-                value={form.peso ? `${form.peso} kg` : ""}
-                onChange={(e) => {
-                  const clean = e.target.value.replace(" kg", "");
-                  handleChange({ target: { name: "peso", value: clean } });
-                }}
-              />
+              <div className="ms-input-wrap">
+                <Scale size={20} />
+                <input
+                  id="peso"
+                  name="peso"
+                  type="text"
+                  placeholder="Peso"
+                  value={form.peso ? `${form.peso} kg` : ""}
+                  onChange={(e) => {
+                    const clean = e.target.value.replace(" kg", "");
+                    handleChange({ target: { name: "peso", value: clean } });
+                  }}
+                />
+              </div>
               {fieldErrors.peso && (
                 <small className="cl-error-text">{fieldErrors.peso}</small>
               )}

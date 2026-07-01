@@ -211,6 +211,14 @@ export default function CreateAccountVetCare() {
           <div className="cl-header-circle cl-header-circle--left"></div>
           <div className="cl-header-circle cl-header-circle--right"></div>
 
+          <button
+            type="button"
+            className="cl-header-back"
+            onClick={() => navigate("/menu")}
+          >
+            ← Volver
+          </button>
+
           <div className="cl-header-content">
             <h1 className="cl-title">Agregar usuario</h1>
             <p className="cl-sub">Llena la informacion para continuar</p>
