@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import "./RegistroCliente.css";
+import { isDemoMode } from "../utils/demoMode";
+import { demoClientes } from "../mock/demoData";
+
 
 const API_URL = "http://localhost:5000";
 
@@ -58,6 +61,12 @@ const [clienteForm, setClienteForm] = useState({
           navigate("/", { replace: true });
           return;
         }
+
+              if (isDemoMode) {
+        setClientes(demoClientes);
+        setLoading(false);
+        return;
+      }
 
         const [clienteRes, mascotasRes] = await Promise.all([
           fetch(`${API_URL}/api/clientes?id=${clienteId}`, {

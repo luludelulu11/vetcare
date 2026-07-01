@@ -152,12 +152,12 @@ select {
   min-height: 42px;
   padding: 0 16px;
   border: 1.5px solid var(--border);
-  border-radius: 12px;
+  border-radius: 16px;
   font-family: inherit;
   font-size: 14px;
   font-weight: 500;
   color: #000;
-  background: #e8f2f5;
+  background: #f7fbfc;
   outline: none;
   transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
 }

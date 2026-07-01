@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import "./historialMascota.css";
 import Swal from "sweetalert2";
+import { isDemoMode } from "../utils/demoMode";
+import { demoClientes } from "../mock/demoData";
+
 
 const API_URL = "http://localhost:5000";
 
@@ -79,6 +82,12 @@ export default function HistorialMascota() {
           navigate("/", { replace: true });
           return;
         }
+
+         if (isDemoMode) {
+        setHistorialMascota(demoHistorialMascota);
+        setLoading(false);
+        return;
+      }
 
         const [mascotasRes, clientesRes, historialRes] = await Promise.all([
           fetch(`${API_URL}/api/mascotas`, {

@@ -8,6 +8,9 @@ import {
   validateFields,
   validators,
 } from "../utils/formRules";
+import { isDemoMode } from "../utils/demoMode";
+import { demoClientes } from "../mock/demoData";
+
 
 
 
@@ -149,6 +152,12 @@ export default function CreateAccountVetCare() {
       navigate("/", { replace: true });
       return;
     }
+
+     if (isDemoMode) {
+  setMascotas(demoMascotas);
+  setLoading(false);
+  return;
+}
 
     try {
       setLoading(true);
@@ -330,7 +339,7 @@ export default function CreateAccountVetCare() {
   </button>
 
   <Link to="/" className="cl-btn-secondary">
-    Devuelta al menú
+    Ir al Login
   </Link>
 
   <div className="cl-note">

@@ -154,7 +154,12 @@ div {
   font-family: "DM Sans", sans-serif !important;
 }
 
-.ms-field input,
+
+.ms-field input{
+  background-color: #f7fbfc;
+}
+
+
 .ms-field select,
 .ms-field textarea {
   width: 100%;
@@ -184,7 +189,7 @@ div {
 
 .ms-field input::placeholder,
 .ms-field textarea::placeholder {
-  color: var(--text-light);
+  color: #8eaac0;
 }
 
 .ms-field input:focus,
