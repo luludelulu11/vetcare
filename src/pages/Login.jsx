@@ -22,14 +22,24 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError("");
+    
+    if (import.meta.env.VITE_DEMO === "true") {
+    localStorage.setItem("token", "demo-token");
+    localStorage.setItem(
+      "user",
+      JSON.stringify({
+        id: "demo-admin",
+        username: "demo@vetcare.com",
+        role: "ADMIN",
+      })
+    );
 
-    if (isDemoMode) {
-  localStorage.setItem("token", "demo-token");
-  localStorage.setItem("user", JSON.stringify(demoUser));
-  navigate("/menu", { replace: true });
-  return;
-}
+    navigate("/menu", { replace: true });
+    return;
+  }
+
+  setError("");
+
 
     if (!usuario.trim() || !contrasena.trim()) {
       setError("Nombre de usuario y contraseña son obligatorios.");
