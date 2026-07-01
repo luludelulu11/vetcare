@@ -8,8 +8,9 @@ import { demoUser } from "../mock/demoData";
 
 
 export default function Login() {
+  console.log("VITE_DEMO =", import.meta.env.VITE_DEMO);
   const navigate = useNavigate();
-
+  
   const [usuario, setUsuario] = useState("");
   const [contrasena, setContrasena] = useState("");
   const [showPass, setShowPass] = useState(false);
@@ -22,7 +23,15 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
+    const isDemoMode = import.meta.env.VITE_DEMO === "true";
+
+const demoUser = {
+  id: "demo-admin",
+  username: "demo@vetcare.com",
+  role: "ADMIN",
+};
+
     if (import.meta.env.VITE_DEMO === "true") {
     localStorage.setItem("token", "demo-token");
     localStorage.setItem(
