@@ -146,11 +146,11 @@ div {
 
 .ms-field label {
   display: block;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 1px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
   text-transform: uppercase;
-  color: var(--text-mid);
+  color: rgb(127, 158, 161);
   font-family: "DM Sans", sans-serif !important;
 }
 

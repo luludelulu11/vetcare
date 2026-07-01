@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./clientes.css";
+import { User, IdCard, MapPin, Mail, Phone } from "lucide-react";
 import {
   applyFieldFormatting,
   validateFields,
@@ -232,12 +233,15 @@ console.log("cedula digits:", String(form.cedula).replace(/\D/g, "").length);
               <label>
                 Nombre <span className="req">*</span>
               </label>
-              <input
-                name="nombre"
-                value={form.nombre}
-                onChange={handleChange}
-                placeholder="Nombre"
-              />
+              <div className="cl-input-wrap">
+                <User size={20} />
+                <input
+                  name="nombre"
+                  value={form.nombre}
+                  onChange={handleChange}
+                  placeholder="Nombre"
+                />
+              </div>
               {fieldErrors.nombre && (
                 <small className="cl-error-text">{fieldErrors.nombre}</small>
               )}
@@ -247,12 +251,15 @@ console.log("cedula digits:", String(form.cedula).replace(/\D/g, "").length);
               <label>
                 Cédula <span className="req">*</span>
               </label>
-              <input
-                name="cedula"
-                value={form.cedula_display}
-                onChange={handleChange}
-                placeholder="000-0000000-0"
-              />
+              <div className="cl-input-wrap">
+                <IdCard size={20} />
+                <input
+                  name="cedula"
+                  value={form.cedula_display}
+                  onChange={handleChange}
+                  placeholder="000-0000000-0"
+                />
+              </div>
               {fieldErrors.cedula && (
                 <small className="cl-error-text">{fieldErrors.cedula}</small>
               )}
@@ -264,24 +271,30 @@ console.log("cedula digits:", String(form.cedula).replace(/\D/g, "").length);
               <label>
                 Dirección <span className="req">*</span>
               </label>
-              <input
-                name="direccion"
-                value={form.direccion}
-                onChange={handleChange}
-                placeholder="Dirección"
-              />
+              <div className="cl-input-wrap">
+                <MapPin size={20} />
+                <input
+                  name="direccion"
+                  value={form.direccion}
+                  onChange={handleChange}
+                  placeholder="Dirección"
+                />
+              </div>
             </div>
 
             <div className="cl-field">
               <label>
                 Correo <span className="req">*</span>
               </label>
-              <input
-                name="correo"
-                value={form.correo}
-                onChange={handleChange}
-                placeholder="correo@noemail.com"
-              />
+              <div className="cl-input-wrap">
+                <Mail size={20} />
+                <input
+                  name="correo"
+                  value={form.correo}
+                  onChange={handleChange}
+                  placeholder="correo@noemail.com"
+                />
+              </div>
               {fieldErrors.correo && (
                 <small className="cl-error-text">{fieldErrors.correo}</small>
               )}
@@ -293,12 +306,15 @@ console.log("cedula digits:", String(form.cedula).replace(/\D/g, "").length);
               <label>
                 Teléfono <span className="req">*</span>
               </label>
-              <input
-                name="telefono"
-                value={form.telefono_display}
-                onChange={handleChange}
-                placeholder="000-000-0000"
-              />
+              <div className="cl-input-wrap">
+                <Phone size={20} />
+                <input
+                  name="telefono"
+                  value={form.telefono_display}
+                  onChange={handleChange}
+                  placeholder="000-000-0000"
+                />
+              </div>
               {fieldErrors.telefono && (
                 <small className="cl-error-text">{fieldErrors.telefono}</small>
               )}
@@ -306,12 +322,15 @@ console.log("cedula digits:", String(form.cedula).replace(/\D/g, "").length);
 
             <div className="cl-field">
               <label>Teléfono secundario</label>
-              <input
-                name="telefono2"
-                value={form.telefono2_display}
-                onChange={handleChange}
-                placeholder="000-000-0000"
-              />
+              <div className="cl-input-wrap">
+                <Phone size={20} />
+                <input
+                  name="telefono2"
+                  value={form.telefono2_display}
+                  onChange={handleChange}
+                  placeholder="000-000-0000"
+                />
+              </div>
             </div>
           </div>
 
