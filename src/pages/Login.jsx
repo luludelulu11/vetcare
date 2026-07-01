@@ -18,16 +18,18 @@ export default function Login() {
   const API_URL = import.meta.env.VITE_API_URL || "";
   const passType = useMemo(() => (showPass ? "text" : "password"), [showPass]);
 
-  if (isDemoMode) {
+  
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    if (isDemoMode) {
   localStorage.setItem("token", "demo-token");
   localStorage.setItem("user", JSON.stringify(demoUser));
   navigate("/menu", { replace: true });
   return;
 }
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
 
     if (!usuario.trim() || !contrasena.trim()) {
       setError("Nombre de usuario y contraseña son obligatorios.");
