@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./historial.css";
 import { isDemoMode } from "../utils/demoMode";
-import { demoClientes } from "../mock/demoData";
+import { demoMascotas } from "../mock/demoData";
 
 const API_URL = "http://localhost:5000";
 
@@ -16,6 +16,29 @@ export default function HistorialClinico() {
 
   useEffect(() => {
     const loadResumen = async () => {
+
+      if (isDemoMode) {
+  const resumen = demoMascotas.map((pet, index) => {
+    const mascotaId = pet.id ?? `pet-${index}`;
+
+    return {
+      mascotaId,
+      nombre: pet.name ?? pet.nombre ?? "Sin nombre",
+      raza: pet.breed ?? pet.raza ?? "Sin raza",
+      edad: pet.age_years ?? pet.edad ?? "Sin edad",
+      clienteNombre:
+        `${pet.first_name ?? ""} ${pet.last_name ?? ""}`.trim() ||
+        pet.clienteNombre ||
+        "Sin tutor/a",
+      consultasTotal: pet.consultasTotal ?? 2,
+      ultimaConsulta: pet.ultimaConsulta ?? "2026-04-13",
+    };
+  });
+
+  setMascotasResumen(resumen);
+  setLoading(false);
+  return;
+}
       try {
         setLoading(true);
         setError("");
@@ -29,11 +52,7 @@ export default function HistorialClinico() {
           return;
         }
 
-        if (isDemoMode) {
-  setMascotasResumen(demoMascotas);
-  setLoading(false);
-  return;
-}
+        
 
         const mascotasRes = await fetch(`${API_URL}/api/mascotas`, {
           headers: {

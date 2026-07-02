@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./menu.css";
 import Swal from 'sweetalert2';
+import { isDemoMode } from "../utils/demoMode";
+import { demoStats } from "../mock/demoData";
 
 const baseMenuSections = [
   {
@@ -116,6 +118,14 @@ const baseQuickActions = [
     desc: "Inicia un nuevo registro medico para una mascota",
     path: "/consultas",
     featured: true,
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+        <line x1="12" y1="18" x2="12" y2="12" />
+        <line x1="9" y1="15" x2="15" y2="15" />
+      </svg>
+    ),
   },
   {
     id: "registrar-clientes",
@@ -123,6 +133,14 @@ const baseQuickActions = [
     path: "/clientes",
     desc: "Agrega un nuevo usuario al sistema",
     featured: false,
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+        <circle cx="12" cy="7" r="4" />
+        <line x1="19" y1="8" x2="19" y2="14" />
+        <line x1="22" y1="11" x2="16" y2="11" />
+      </svg>
+    ),
   },
   {
     id: "registrar-mascotas",
@@ -130,6 +148,15 @@ const baseQuickActions = [
     title: "Registrar Mascota",
     desc: "Vincula una mascota a un usuario existente",
     featured: false,
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M10 5.172C10 3.782 8.423 2.679 6.5 3c-2.823.47-4.113 6.006-4 7 .08.703 1.725 1.722 3.656 1 1.261-.472 1.96-1.45 2.344-2.5" />
+        <path d="M14.267 5.172c0-1.39 1.577-2.493 3.5-2.172 2.823.47 4.113 6.006 4 7-.08.703-1.725 1.722-3.656 1-1.261-.472-1.855-1.45-2.344-2.5" />
+        <path d="M8 14v.5A3.5 3.5 0 0 0 11.5 18h1a3.5 3.5 0 0 0 3.5-3.5V14a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2z" />
+        <path d="M6.5 10c-.223 1.685.8 3.032 2 3.5" />
+        <path d="M17.5 10c.223 1.685-.8 3.032-2 3.5" />
+      </svg>
+    ),
   },
   {
     id: "ver-registrados",
@@ -137,6 +164,14 @@ const baseQuickActions = [
     path: "/Registro",
     desc: "Consulta el listado general de usuarios y mascotas",
     featured: false,
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </svg>
+    ),
   },
   {
     id: "alertas",
@@ -144,6 +179,12 @@ const baseQuickActions = [
     path: "/alertas",
     desc: "",
     featured: false,
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+        <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+      </svg>
+    ),
   },
 ];
 
@@ -166,8 +207,62 @@ export default function MenuPage() {
     { label: "Alertas", value: "0", accent: "#8e44ad" },
   ]);
 
+  const getStatIcon = (label) => {
+    const key = String(label).toLowerCase();
+    if (key.includes("cliente") || key.includes("usuario")) {
+      return (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+          <circle cx="12" cy="7" r="4" />
+        </svg>
+      );
+    }
+    if (key.includes("mascot")) {
+      return (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M10 5.172C10 3.782 8.423 2.679 6.5 3c-2.823.47-4.113 6.006-4 7 .08.703 1.725 1.722 3.656 1" />
+          <path d="M14.267 5.172c0-1.39 1.577-2.493 3.5-2.172 2.823.47 4.113 6.006 4 7-.08.703-1.725 1.722-3.656 1" />
+        </svg>
+      );
+    }
+    if (key.includes("consulta")) {
+      return (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+        </svg>
+      );
+    }
+    if (key.includes("alert")) {
+      return (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+        </svg>
+      );
+    }
+    return (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="4" />
+      </svg>
+    );
+  };
+
+
+
   useEffect(() => {
+
+    
+
     const fetchStats = async () => {
+
+      const isDemoMode = import.meta.env.VITE_DEMO === "true";
+
+       if (isDemoMode) {
+        setStats(demoStats);
+        return;
+      }
+      
       try {
         const token = localStorage.getItem("token");
 
@@ -177,6 +272,7 @@ export default function MenuPage() {
           return;
         }
 
+        
         const res = await fetch("http://localhost:5000/api/stats", {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -439,6 +535,7 @@ export default function MenuPage() {
         </div>
 
         <div className="stats">
+          
           {stats.map((s) => (
             <div
               key={s.label}
@@ -446,8 +543,11 @@ export default function MenuPage() {
               style={{ "--accent": s.accent }}
             >
               <div className="stat-card__accent-bar" />
-              <p className="stat-card__label">{s.label}</p>
-              <p className="stat-card__value">{s.value}</p>
+              <div className="stat-card__icon">{getStatIcon(s.label)}</div>
+              <div className="stat-card__content">
+                <p className="stat-card__label">{s.label}</p>
+                <p className="stat-card__value">{s.value}</p>
+              </div>
             </div>
           ))}
         </div>
@@ -465,13 +565,16 @@ export default function MenuPage() {
                 }
               }}
             >
-              {action.badge !== undefined && action.id === "alertas" && (
-                <span className="action-card__badge">
-                  {action.badge} alertas
-                </span>
-              )}
-              <p className="action-card__title">{action.title}</p>
-              <p className="action-card__desc">{action.desc}</p>
+              <div className="action-card__icon">{action.icon}</div>
+              <div className="action-card__content">
+                {action.badge !== undefined && action.id === "alertas" && (
+                  <span className="action-card__badge">
+                    {action.badge} alertas
+                  </span>
+                )}
+                <p className="action-card__title">{action.title}</p>
+                <p className="action-card__desc">{action.desc}</p>
+              </div>
               <span className="action-card__arrow">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="5" y1="12" x2="19" y2="12" />

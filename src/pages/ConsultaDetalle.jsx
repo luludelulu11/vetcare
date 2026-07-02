@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import "./consultaDetalle.css";
+import { isDemoMode } from "../utils/demoMode";
+import { demoConsultaDetalle } from "../mock/demoData";
 
 const API_URL = "http://localhost:5000";
 
@@ -80,6 +82,30 @@ export default function ConsultaDetalle() {
       try {
         setError("");
         setSaveMessage("");
+
+        if (isDemoMode) {
+        const data = demoConsultaDetalle;
+
+        setConsulta(data);
+
+        const nextForm = {
+          doctor_id: data.doctor_id || "",
+          pet_id: data.pet_id || "",
+          client_id: data.client_id || "",
+          fecha: toDatetimeLocal(data.visit_at),
+          motivo: data.reason || "",
+          diagnostico: data.diagnosis || "",
+          observaciones: data.notes || "",
+          estado: data.estado || "",
+          gravedad: data.gravedad || "",
+          proxima_cita: toDatetimeLocal(data.proxima_cita),
+          motivo_seguimiento: data.motivo_seguimiento || "",
+        };
+
+        setForm(nextForm);
+        setInitialForm(nextForm);
+        return;
+      }
 
         const token = localStorage.getItem("token");
 

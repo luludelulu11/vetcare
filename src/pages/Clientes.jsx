@@ -129,6 +129,12 @@ console.log("cedula digits:", String(form.cedula).replace(/\D/g, "").length);
       return;
     }
 
+        if (isDemoMode) {
+      setClientes(demoClientes);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
 
@@ -150,11 +156,7 @@ console.log("cedula digits:", String(form.cedula).replace(/\D/g, "").length);
         telefono2: form.telefono2,
       };
 
-      if (isDemoMode) {
-  setClientes(demoClientes);
-  setLoading(false);
-  return;
-}
+      
 
       const response = await fetch(`${API_URL}/api/clientes`, {
         method: "POST",
@@ -321,7 +323,8 @@ console.log("cedula digits:", String(form.cedula).replace(/\D/g, "").length);
             </div>
 
             <div className="cl-field">
-              <label>Teléfono secundario</label>
+              <label>Teléfono secundario <span class="cl-field-optional-tag">(opcional)</span>
+              </label>
               <div className="cl-input-wrap">
                 <Phone size={20} />
                 <input

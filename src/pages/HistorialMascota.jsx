@@ -3,8 +3,11 @@ import { useNavigate, useParams } from "react-router-dom";
 import "./historialMascota.css";
 import Swal from "sweetalert2";
 import { isDemoMode } from "../utils/demoMode";
-import { demoClientes } from "../mock/demoData";
-
+import {
+  demoClientes,
+  demoMascotas,
+  demoHistorialMascota,
+} from "../mock/demoData";
 
 const API_URL = "http://localhost:5000";
 
@@ -70,6 +73,41 @@ export default function HistorialMascota() {
 
   useEffect(() => {
     const cargarHistorial = async () => {
+
+        if (isDemoMode) {
+  const mascota =
+    demoMascotas.find((m) => String(m.id) === String(mascotaId)) ||
+    demoMascotas[0];
+
+  const cliente =
+    demoClientes.find(
+      (c) =>
+        String(c.id) === String(mascota.clienteId) ||
+        String(c.id) === String(mascota.client_id)
+    ) || demoClientes[0];
+
+  setMascotaInfo(mascota);
+  setClienteInfo(cliente);
+  setConsultas(demoHistorialMascota);
+
+  setForm({
+    nombre: mascota.nombre || mascota.name || "",
+    raza: mascota.raza || mascota.breed || "",
+    edad: mascota.edad || mascota.age_years || "",
+    sexo:
+      mascota.sex === "MALE"
+        ? "Macho"
+        : mascota.sex === "FEMALE"
+        ? "Hembra"
+        : mascota.sexo || "",
+    peso: mascota.peso || mascota.weight_kg || "",
+    observaciones: mascota.observaciones || mascota.observations || "",
+  });
+
+  setLoading(false);
+  return;
+}
+
       try {
         setLoading(true);
         setError("");
@@ -83,12 +121,7 @@ export default function HistorialMascota() {
           return;
         }
 
-         if (isDemoMode) {
-        setHistorialMascota(demoHistorialMascota);
-        setLoading(false);
-        return;
-      }
-
+      
         const [mascotasRes, clientesRes, historialRes] = await Promise.all([
           fetch(`${API_URL}/api/mascotas`, {
             headers: {

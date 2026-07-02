@@ -161,12 +161,23 @@ body {
   color: #8eabb0;
 }
 
+.rg-search:hover{
+  border-color: #9fc4cb;
+  box-shadow: 0 10px 24px rgba(18, 52, 59, 0.1);
+  transform: translateY(-1px);
+}
+
+.rg-search:focus {
+  border-color: #4f8d98;
+  box-shadow: 0 0 0 4px rgba(79, 141, 152, 0.14);
+}
+
 .rg-results {
   background: #fff;
   border: 2px solid var(--border);
   border-radius: 22px;
-  min-width: 170px;
-  height: 72px;
+  min-width: 130px;
+  height: 50px;
   display: grid;
   place-items: center;
   padding: 0 20px;
@@ -297,17 +308,31 @@ body {
 }
 
 .rg-last-text {
-  color: #a7bcc0;
+  color: var(--text-mid);
   font-size: 15px;
   font-weight: 500;
   white-space: nowrap;
 }
 
 .rg-chevron {
-  color: #c8d6d9;
-  font-size: 30px;
+  color: var(--text-mid);
+  font-size: 40px;
   line-height: 1;
+  border-radius: 16px;
+    width: 40px;
+    padding-left: 15px;
+    background: 
+color-mix(in srgb, var(--header-bgi) 12%, transparent);
 }
+
+.rg-chevron:hover {
+  background: #d8f7feea;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 28px rgba(90, 175, 232, 0.45);
+  border: 2px solid #bdeffaf3;
+}
+
+
 
 .rg-state-card {
   background: #fff;

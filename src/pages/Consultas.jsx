@@ -453,13 +453,6 @@ export default function ConsultaForm({ onSave }) {
           return;
         }
 
-
-        if (isDemoMode) {
-  setMascotas(demoMascotas);
-  setLoading(false);
-  return;
-}
-
         const res = await fetch(`${API_URL}/api/mascotas`, {
           headers: { Authorization: `Bearer ${token}` },
         });

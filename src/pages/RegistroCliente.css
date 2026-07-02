@@ -25,6 +25,19 @@
   --orange-text: #b05b33;
   --gold-bg: #f8efd7;
   --gold-text: #9a6d1d;
+  --cremita: #fff6eadd;
+  --teal-lighta: #add4e7d3;
+  --hover-shadow: #2a9d8066;
+  --logout-shadow:#e8685a51;
+  --logout-bg: #fff5f2;
+  --logout-hover-bg: #ed7c566e;
+  --logout-border: #fcd5c8;
+  --overlay-bg: #1a2e2b73;
+  --sb-tb-hover: #96d5dbbc; 
+  --sb-item-hover: #b5dff6;
+  --tb-bg: #fdf8f2d9;
+  --gray:#ffffff29;
+  --bone: #ffffffc2;
 }
 
 body {
@@ -86,6 +99,7 @@ body {
 .rcc-header-center {
   text-align: center;
   color: #fff;
+  font-family: "Playfair Display", serif;
 }
 
 .rcc-edit-btn:hover, 

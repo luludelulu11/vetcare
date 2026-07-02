@@ -322,7 +322,7 @@
 
 .vc-btn-login:hover {
   transform: translateY(-1px);
-  box-shadow: 0 8px 28px rgba(90, 175, 232, 0.45);
+  box-shadow: 0 8px 28px rgba(90, 232, 211, 0.45);
   filter: brightness(1.05);
 }
 

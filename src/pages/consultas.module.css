@@ -659,8 +659,9 @@
 
 .btnSave:hover {
   transform: translateY(-1px);
-  box-shadow: 0 8px 28px rgba(90, 175, 232, 0.45);
+  box-shadow: 0 8px 28px #5ae8e173;
   filter: brightness(1.05);
+  background: #2f5e6e;
 }
 
 .btnCancel {
@@ -677,8 +678,8 @@
 
 .btnCancel:hover {
   transform: translateY(-1px);
-  background: #e1e8e8;
-  box-shadow: 0 8px 24px rgba(26, 74, 90, 0.10);
+  background: #ffe8e8;
+  box-shadow: 0 8px 24px #fbe7dc;
   filter: brightness(1.01)
 }
 

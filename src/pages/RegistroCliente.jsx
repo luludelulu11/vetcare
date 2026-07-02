@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import "./RegistroCliente.css";
 import { isDemoMode } from "../utils/demoMode";
-import { demoClientes } from "../mock/demoData";
+import { demoClientes, demoMascotas } from "../mock/demoData";
 
 
 const API_URL = "http://localhost:5000";
@@ -49,6 +49,35 @@ const [clienteForm, setClienteForm] = useState({
 
   useEffect(() => {
     const cargarRegistroCliente = async () => {
+
+
+            if (isDemoMode) {
+        const cliente =
+          demoClientes.find((c) => String(c.id) === String(clienteId)) ||
+          demoClientes[0];
+
+        const mascotasCliente = demoMascotas.filter(
+          (m) =>
+            String(m.clienteId) === String(cliente.id) ||
+            String(m.client_id) === String(cliente.id)
+        );
+
+        setClienteInfo(cliente);
+
+        setClienteForm({
+          nombre: cliente.nombre || "",
+          cedula: cliente.cedula || "",
+          direccion: cliente.direccion || "",
+          correo: cliente.correo || "",
+          telefono: cliente.telefono || "",
+          telefono2: cliente.telefono2 || "",
+        });
+
+        setMascotas(mascotasCliente);
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         setError("");
@@ -62,11 +91,7 @@ const [clienteForm, setClienteForm] = useState({
           return;
         }
 
-              if (isDemoMode) {
-        setClientes(demoClientes);
-        setLoading(false);
-        return;
-      }
+            
 
         const [clienteRes, mascotasRes] = await Promise.all([
           fetch(`${API_URL}/api/clientes?id=${clienteId}`, {

@@ -9,7 +9,7 @@ import {
 } from "../utils/formRules";
 import Swal from "sweetalert2";
 import { isDemoMode } from "../utils/demoMode";
-import { demoClientes } from "../mock/demoData";
+import { demoMascotas, demoClientes } from "../mock/demoData";
 
 const API_URL = "http://localhost:5000";
 
@@ -84,6 +84,11 @@ export default function Mascotas() {
 
   useEffect(() => {
     const loadClientes = async () => {
+
+      if (isDemoMode) {
+      setClientes(demoClientes);
+      return;
+    }
       try {
         setLoadingClientes(true);
         setError("");
@@ -97,11 +102,7 @@ export default function Mascotas() {
           return;
         }
 
-        if (isDemoMode) {
-  setMascotas(demoMascotas);
-  setLoading(false);
-  return;
-}
+        
 
         const response = await fetch(`${API_URL}/api/clientes`, {
           headers: {

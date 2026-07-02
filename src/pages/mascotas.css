@@ -63,7 +63,9 @@ div {
 
 .ms-card {
   width: 100%;
-  max-width: 760px;
+  max-width: 700px;
+  scale: 0.92;
+  transform-origin: top center;
   background: white;
   border: 1px solid rgba(42, 112, 144, 0.08);
   border-radius: 30px;
@@ -331,7 +333,7 @@ div {
 .ms-btn-primary:hover {
   transform: translateY(-1px);
   filter: brightness(1.03);
-  box-shadow: 0 14px 30px rgba(42, 112, 144, 0.28);
+  box-shadow: 0 14px 30px #bff5e7d0;
 }
 
 .ms-btn-primary:active {
@@ -358,8 +360,15 @@ div {
   font-family: "DM Sans", sans-serif;
 }
 
-.ms-btn-secondary:hover,
-.ms-link:hover {
+.ms-link:hover{
+  transform: translateY(-1px);
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(90, 175, 232, 0.25);
+    filter: brightness(1.02);
+}
+
+.ms-btn-secondary:hover
+ {
   background: #EAF4FA;
   transform: translateY(-1px);
 }

@@ -3,11 +3,14 @@ import { useNavigate } from "react-router-dom";
 import "./Registro.css";
 import Select from "react-select";
 import { isDemoMode } from "../utils/demoMode";
-import { demoClientes } from "../mock/demoData";
+import { demoRegistro } from "../mock/demoData";
 
 const API_URL = "http://localhost:5000";
 
-export default function Registro() {
+
+
+ export default function Registro() {
+
   const navigate = useNavigate();
   const options = [
   { value: "todos", label: "Todos" },
@@ -43,11 +46,7 @@ export default function Registro() {
   };
 
 
-  if (isDemoMode) {
-  setRegistro(demoRegsitro);
-  setLoading(false);
-  return;
-}
+ 
 
   useEffect(() => {
     const loadData = async () => {
@@ -66,6 +65,13 @@ export default function Registro() {
 
         const estadoQuery =
           estadoFiltro === "todos" ? "" : `?estado=${estadoFiltro}`;
+
+           if (isDemoMode) {
+          setClientes(demoRegistro.clientes);
+          setMascotas(demoRegistro.mascotas);
+          setLoading(false);
+          return;
+        }
 
         const [clientesResponse, mascotasResponse] = await Promise.all([
           fetch(`${API_URL}/api/clientes${estadoQuery}`, {
@@ -455,6 +461,7 @@ export default function Registro() {
       padding: "4px",
       fontWeight: 700,
       cursor: "pointer",
+      height: "50px",
     }),
     menu: (base) => ({
       ...base,

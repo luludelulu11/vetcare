@@ -17,6 +17,29 @@
   --border: #cfe0df;
 }
 
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0a0f0e;
+    --text: #e0e8e8;
+    --muted: #a8c0bc;
+    --border: #1f3330;
+  }
+}
+
+body.dark-mode {
+  --bg: #0a0f0e;
+  --text: #e0e8e8;
+  --muted: #a8c0bc;
+  --border: #1f3330;
+}
+
+body.light-mode {
+  --bg: #fcf9f5;
+  --text: #1a2a3a;
+  --muted: #6a8eaa;
+  --border: #cfe0df;
+}
+
 /* ─── Page ─────────────────────────── */
 .cl-body {
   width: 100%;
@@ -34,7 +57,7 @@
 .cl-card {
   width: 100%;
   max-width: 650px;
-  background: white; /* ✅ FIXED */
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 32px;
   overflow: hidden;
@@ -56,7 +79,7 @@
   right: 18px;
   border: 2px solid rgba(255, 255, 255, 0.18);
   background: transparent;
-  color: #fff;
+  color:var(--white);
   border-radius: 18px;
   padding: 10px 18px;
   font-family: inherit;
@@ -91,7 +114,7 @@
 /* ─── Form Body ───────────────────── */
 .cl-form-body {
   padding: 32px 28px;
-  background: white; /* ✅ FIXED */
+  background: var(--surface-elev);
 }
 
 .cl-form-container {
@@ -142,7 +165,7 @@
   align-items: center;
   width: 100%;
   height: 52px;
-  background: #f7fbfc;
+  background: var(--input-bg, #f7fbfc);
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 0 14px;
@@ -179,7 +202,7 @@
 }
 
 .cl-input-wrap input::placeholder {
-  color: #9ab2b6;
+  color: var(--text-soft);
 }
 
 /* 🔥 Autofill FIX */
@@ -213,7 +236,7 @@
   border-radius: 16px;
   padding: 14px;
   text-align: center;
-  background: #f3f6f7;
+  background: var(--soft);
   color: var(--primary-dark);
   text-decoration: none;
 }

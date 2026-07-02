@@ -429,7 +429,7 @@ export default function Alertas() {
               className={styles.backBtn}
               onClick={() => navigate(-1)}
             >
-              ← Back
+              ← Volver
             </button>
 
             <div>
