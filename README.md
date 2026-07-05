@@ -268,8 +268,37 @@ JWT_SECRET=
 EMAIL_USER=
 EMAIL_PASS=
 ```
+## Docker setup
 
+This project uses PostgreSQL with Prisma ORM.
+
+### Local PostgreSQL with Docker
+
+```bash
+docker run --name vetcare-postgres \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=12345 \
+  -e POSTGRES_DB=vetcare \
+  -p 5432:5432 \
+  -d postgres:16
 ---
+
+### Apply Prisma migrations
+
+For development:
+
+```bash
+cd backend
+npx prisma migrate dev
+npx prisma generate
+
+For production:
+cd backend
+npx prisma migrate deploy
+npx prisma generate
+
+The production database is hosted in Neon PostgreSQL and is consumed through the DATABASE_URL environment variable.
+
 
 # 🚀 Running the Project
 

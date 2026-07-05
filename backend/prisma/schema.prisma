@@ -1,0 +1,396 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id              String    @id @default(uuid())
+  username        String    @unique
+  passwordHash    String    @map("password_hash")
+  role            String
+  deletedAt       DateTime? @map("deleted_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  consultations   Consultation[] @relation("DoctorConsultations")
+
+  profilePhotoUrl String? @map("profile_photo_url")
+  passwordChangedAt DateTime? @map("password_changed_at")
+  passwordResetTokens PasswordResetToken[]
+  @@map("users")
+}
+
+model Client {
+  id             String    @id @default(uuid())
+  firstName      String    @map("first_name")
+  lastName       String    @map("last_name")
+  nationalId     String?   @unique @map("national_id")
+  email          String?
+  phonePrimary   String?   @map("phone_primary")
+  phoneSecondary String?   @map("phone_secondary")
+  addressLine1   String?   @map("address_line1")
+  deletedAt      DateTime? @map("deleted_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  pets           Pet[]
+  consultations  Consultation[]
+
+  appointments Appointment[]
+  alerts Alert[]
+
+  @@map("clients")
+}
+
+model Pet {
+  id           String    @id @default(uuid())
+  clientId     String    @map("client_id")
+  name         String
+  breed        String?
+  sex          String?
+  ageYears     Int?      @map("age_years")
+  weightKg     Decimal?  @map("weight_kg") @db.Decimal(10, 2)
+  weightText   String?   @map("weight_text")
+  observations String?
+  deletedAt    DateTime? @map("deleted_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  client        Client @relation(fields: [clientId], references: [id])
+  consultations Consultation[]
+
+  species PetSpecies?
+  hasMicrochip Boolean @default(false) @map("has_microchip")
+  microchipNumber String? @map("microchip_number")
+
+  appointments Appointment[]
+  vaccineCard VaccineCard?
+  alerts Alert[]
+  digitalId PetDigitalId?
+  travelDocuments PetTravelDocument[]
+
+  @@map("pets")
+}
+
+model Consultation {
+  id                         String    @id @default(uuid())
+  petId                      String    @map("pet_id")
+  clientId                   String    @map("client_id")
+  doctorId                   String?   @map("doctor_id")
+  fecha                      DateTime
+  motivo                     String
+  diagnostico                String?
+  observaciones              String?
+  estado                     String    @default("abierta")
+  gravedad                   String    @default("moderada")
+  proximaCita                DateTime? @map("proxima_cita")
+  motivoSeguimiento          String?   @map("motivo_seguimiento")
+  peso                       Decimal?  @db.Decimal(10, 2)
+  temperatura                Decimal?  @db.Decimal(5, 2)
+  frecuenciaCardiaca         Int?      @map("frecuencia_cardiaca")
+  frecuenciaRespiratoria     Int?      @map("frecuencia_respiratoria")
+  presionArterial            String?   @map("presion_arterial")
+  saturacionOxigeno          Int?      @map("saturacion_oxigeno")
+  atrasoNotificadoAt         DateTime? @map("atraso_notificado_at")
+  recordatorioMananaEnviadoAt DateTime? @map("recordatorio_manana_enviado_at")
+  deletedAt                  DateTime? @map("deleted_at")
+  createdAt                  DateTime  @default(now()) @map("created_at")
+  updatedAt                  DateTime  @updatedAt @map("updated_at")
+
+  pet          Pet     @relation(fields: [petId], references: [id])
+  client       Client  @relation(fields: [clientId], references: [id])
+  doctor       User?   @relation("DoctorConsultations", fields: [doctorId], references: [id])
+
+  types        ConsultationType[]
+  pregnancy    PregnancyConsultation?
+  medications  Medication[]
+  analyses     LaboratoryAnalysis[]
+  vaccinations Vaccination[]
+  attachments  Attachment[]
+
+  aiDiagnosisSuggestion String? @map("ai_diagnosis_suggestion")
+  aiDiagnosisSources String? @map("ai_diagnosis_sources")
+
+  prescriptions Prescription[]
+
+  @@map("consultas")
+}
+
+model ConsultationType {
+  id             String    @id @default(uuid())
+  consultationId String    @map("consulta_id")
+  tipoConsultaId String    @map("tipo_consulta_id")
+  deletedAt      DateTime? @map("deleted_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  consultation Consultation @relation(fields: [consultationId], references: [id])
+
+  @@map("consulta_tipos")
+}
+
+model PregnancyConsultation {
+  id                 String    @id @default(uuid())
+  consultationId      String    @unique @map("consulta_id")
+  mesesGestacion      Int?      @map("meses_gestacion")
+  cantidadCrias       Int?      @map("cantidad_crias")
+  riesgo              String?
+  tipoParto           String?   @map("tipo_parto")
+  fechaProbableParto  DateTime? @map("fecha_probable_parto")
+  deletedAt           DateTime? @map("deleted_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  consultation Consultation @relation(fields: [consultationId], references: [id])
+
+  @@map("consulta_embarazo")
+}
+
+model Medication {
+  id             String    @id @default(uuid())
+  consultationId String    @map("consulta_id")
+  medicamento    String
+  indicaciones   String?
+  deletedAt      DateTime? @map("deleted_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  consultation Consultation @relation(fields: [consultationId], references: [id])
+
+  @@map("consulta_medicaciones")
+}
+
+model LaboratoryAnalysis {
+  id                   String    @id @default(uuid())
+  consultationId        String    @map("consulta_id")
+  analisis              String
+  resultadoObservacion  String?   @map("resultado_observacion")
+  deletedAt             DateTime? @map("deleted_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  consultation Consultation @relation(fields: [consultationId], references: [id])
+
+  @@map("consulta_analisis")
+}
+
+model Vaccination {
+  id                String    @id @default(uuid())
+  consultationId     String    @map("consulta_id")
+  vacuna             String
+  loteObservaciones  String?   @map("lote_observaciones")
+  deletedAt          DateTime? @map("deleted_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  consultation Consultation @relation(fields: [consultationId], references: [id])
+
+  @@map("consulta_vacunas")
+}
+
+model Attachment {
+  id             String    @id @default(uuid())
+  consultationId String    @map("consulta_id")
+  nombreArchivo  String    @map("nombre_archivo")
+  rutaArchivo    String    @map("ruta_archivo")
+  tipoArchivo    String?   @map("tipo_archivo")
+  tamanoBytes    Int?      @map("tamano_bytes")
+  deletedAt      DateTime? @map("deleted_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  consultation Consultation @relation(fields: [consultationId], references: [id])
+  
+  storageProvider String? @map("storage_provider")
+  storageKey String? @map("storage_key")
+  publicUrl String? @map("public_url")
+  @@map("consulta_adjuntos")
+}
+
+enum PetSpecies {
+  CANINE
+  FELINE
+}
+
+enum AppointmentPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum AlertChannel {
+  EMAIL
+  SMS
+}
+
+enum AlertStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model Appointment {
+  id                String              @id @default(uuid())
+  petId             String              @map("pet_id")
+  clientId          String              @map("client_id")
+  appointmentTypeId String              @map("appointment_type_id")
+  scheduledAt       DateTime            @map("scheduled_at")
+  status            AppointmentStatus   @default(SCHEDULED)
+  priority          AppointmentPriority @default(NORMAL)
+  isPetAggressive   Boolean             @default(false) @map("is_pet_aggressive")
+  estimatedPrice    Decimal?            @map("estimated_price") @db.Decimal(10, 2)
+  notes             String?
+  deletedAt         DateTime?           @map("deleted_at")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+
+  pet             Pet             @relation(fields: [petId], references: [id])
+  client          Client          @relation(fields: [clientId], references: [id])
+  appointmentType AppointmentType @relation(fields: [appointmentTypeId], references: [id])
+  groomingRecord  GroomingRecord?
+  alerts          Alert[]
+
+  @@map("appointments")
+}
+
+model AppointmentType {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  deletedAt   DateTime? @map("deleted_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  appointments Appointment[]
+
+  @@map("appointment_types")
+}
+
+model GroomingRecord {
+  id               String    @id @default(uuid())
+  appointmentId    String    @unique @map("appointment_id")
+  unusualFindings  String?   @map("unusual_findings")
+  serviceDetails   String?   @map("service_details")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id])
+
+  @@map("grooming_records")
+}
+
+model Prescription {
+  id             String    @id @default(uuid())
+  consultationId String    @map("consultation_id")
+  medication     String
+  dosage         String?
+  frequency      String?
+  duration       String?
+  instructions   String?
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  consultation Consultation @relation(fields: [consultationId], references: [id])
+
+  @@map("prescriptions")
+}
+
+model VaccineCard {
+  id               String    @id @default(uuid())
+  petId            String    @unique @map("pet_id")
+  hasMicrochip     Boolean   @default(false) @map("has_microchip")
+  microchipNumber  String?   @map("microchip_number")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  pet Pet @relation(fields: [petId], references: [id])
+
+  @@map("vaccine_cards")
+}
+
+model Alert {
+  id            String      @id @default(uuid())
+  appointmentId String?     @map("appointment_id")
+  petId         String?     @map("pet_id")
+  clientId      String?     @map("client_id")
+  channel       AlertChannel
+  status        AlertStatus @default(PENDING)
+  message       String
+  scheduledAt   DateTime?   @map("scheduled_at")
+  sentAt        DateTime?   @map("sent_at")
+  errorMessage  String?     @map("error_message")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  appointment Appointment? @relation(fields: [appointmentId], references: [id])
+  pet         Pet?         @relation(fields: [petId], references: [id])
+  client      Client?      @relation(fields: [clientId], references: [id])
+
+  @@map("alerts")
+}
+
+model LoginAttempt {
+  id                String   @id @default(uuid())
+  username          String
+  ipAddress         String?  @map("ip_address")
+  failedAttempts    Int      @default(0) @map("failed_attempts")
+  remainingAttempts Int      @default(5) @map("remaining_attempts")
+  lockedUntil       DateTime? @map("locked_until")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("login_attempts")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  tokenHash String   @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("password_reset_tokens")
+}
+
+model PetDigitalId {
+  id        String   @id @default(uuid())
+  petId     String   @unique @map("pet_id")
+  code      String   @unique
+  issuedAt  DateTime @default(now()) @map("issued_at")
+  expiresAt DateTime? @map("expires_at")
+  qrUrl     String?  @map("qr_url")
+
+  pet Pet @relation(fields: [petId], references: [id])
+
+  @@map("pet_digital_ids")
+}
+
+model PetTravelDocument {
+  id            String   @id @default(uuid())
+  petId         String   @map("pet_id")
+  destination   String?
+  requirements  String?
+  encryptedData String?  @map("encrypted_data")
+  issuedAt      DateTime? @map("issued_at")
+  expiresAt     DateTime? @map("expires_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  pet Pet @relation(fields: [petId], references: [id])
+
+  @@map("pet_travel_documents")
+}
