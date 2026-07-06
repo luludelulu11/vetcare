@@ -1,27 +1,8 @@
-# React + Vite
-
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
-
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
-
-
-
-# 🐾 VetCare (Veterinary Management System)
+# 🐾 VetCare
 
 VetCare is a full-stack web application designed to simplify the management of veterinary clinics by centralizing client, pet, consultation, and clinical history information into a modern and intuitive platform.
 
-The project follows a **client-server architecture**, separating the React frontend from the Express.js backend while using **Azure MySQL** as the database.
+The application follows a **client-server architecture**, separating the React frontend from the Express.js backend while using **PostgreSQL** managed through **Prisma ORM**.
 
 ---
 
@@ -41,22 +22,31 @@ The project follows a **client-server architecture**, separating the React front
 
 - Node.js
 - Express.js
+- Prisma ORM
+- PostgreSQL
 - JWT Authentication
 - bcrypt
 - multer
-- mysql2
 - Nodemailer
 
-## Database
+---
 
-- Azure Database for MySQL
-- MySQL 8
+# 🗄 Database
 
-## Deployment
+- PostgreSQL
+- Prisma ORM
+- Neon PostgreSQL (Production)
+- Docker PostgreSQL (Local Development)
 
-- Netlify (Frontend)
-- Azure App Service (Backend)
-- Azure MySQL Flexible Server
+---
+
+# ☁ Deployment
+
+| Component | Platform |
+|-----------|----------|
+| Frontend | Netlify |
+| Backend | Node.js |
+| Database | Neon PostgreSQL |
 
 ---
 
@@ -66,19 +56,21 @@ The project follows a **client-server architecture**, separating the React front
 VetCare
 │
 ├── backend
-│   ├── controllers
-│   ├── middleware
+│   ├── prisma
+│   │   ├── migrations
+│   │   └── schema.prisma
 │   ├── routes
-│   ├── services
-│   ├── db.js
-│   └── server.js
+│   ├── uploads
+│   ├── prisma.config.ts
+│   ├── server.js
+│   └── .env
 │
 ├── src
 │   ├── assets
 │   ├── components
-│   ├── mock
 │   ├── pages
 │   ├── utils
+│   ├── mock
 │   ├── App.jsx
 │   └── main.jsx
 │
@@ -90,101 +82,84 @@ VetCare
 
 # ✨ Features
 
-## 🔐 Authentication
+## Authentication
 
-- Secure JWT Authentication
-- Password encryption using bcrypt
-- Demo Mode without backend
+- JWT Authentication
+- Password hashing with bcrypt
 - Protected routes
+- Demo Mode
 
 ---
 
-## 📊 Dashboard
+## Dashboard
 
-Provides a complete overview of the veterinary clinic including:
-
-- Registered Clients
-- Registered Pets
-- Clinical Consultations
-- Pending Alerts
-- Quick Navigation Cards
+- Registered clients
+- Registered pets
+- Clinical consultations
+- Pending alerts
+- Quick access cards
 
 ---
 
-## 👤 Client Management
+## Client Management
 
-- Register new clients
+- Register clients
 - Edit client information
-- Activate / Deactivate clients
+- Activate / deactivate clients
 - Search clients
-- View pets associated with each owner
+- View pets by owner
 
 ---
 
-## 🐶 Pet Management
+## Pet Management
 
 - Register pets
 - Edit information
-- Activate / Deactivate pets
+- Activate / deactivate pets
 - Owner association
-- Weight
 - Breed
+- Weight
 - Age
 - Sex
 - Clinical observations
 
 ---
 
-## 🩺 Clinical Consultations
+## Clinical Consultations
 
-Create complete veterinary consultations including:
-
-- Visit Reason
+- Visit reason
 - Diagnosis
 - Observations
 - Severity
-- Follow-up Date
-- Follow-up Reason
-
-Additionally supports:
-
+- Follow-up
 - Vaccinations
 - Medications
-- Laboratory Analysis
-- Consultation Types
+- Laboratory analysis
+- Consultation types
 
 ---
 
-## 📖 Clinical History
-
-Displays:
+## Clinical History
 
 - Complete medical history
-- Patient information
-- Owner information
 - Previous consultations
-- Last visit
-- Number of consultations
-
-Each consultation can be opened individually.
+- Owner information
+- Patient information
+- Consultation history
 
 ---
 
-## 🚨 Alerts
+## Alerts
 
-Automatically manages alerts for:
-
-- Upcoming appointments
+- Appointment reminders
 - Vaccination reminders
-- Follow-up consultations
+- Follow-up reminders
 
 ---
 
 # 🧪 Demo Mode
 
-VetCare includes a complete demonstration mode that allows the application to be showcased without requiring a backend server or database connection.
-
-Enable Demo Mode by setting:
+Enable demo mode with:
 
 ```env
 VITE_DEMO=true
@@ -192,33 +167,10 @@ VITE_DEMO=true
 
 When enabled:
 
-- No HTTP requests are executed.
-- All pages consume mock data.
+- No backend requests are executed.
 - Authentication is simulated.
-- Navigation behaves exactly like the production application.
-
-Mock data is located in:
-
-```text
-src/mock/demoData.js
-```
-
----
-
-# 🗄 Database Model
-
-```text
-Clients
-    │
-    ├── Pets
-            │
-            ├── Consultations
-                    │
-                    ├── Vaccinations
-                    ├── Medications
-                    ├── Laboratory Analysis
-                    └── Alerts
-```
+- Mock data is used.
+- Navigation behaves like production.
 
 ---
 
@@ -237,7 +189,7 @@ Credential Validation
 JWT Generation
       │
       ▼
-React stores Token
+React stores token
       │
       ▼
 Authenticated Requests
@@ -257,22 +209,25 @@ VITE_DEMO=false
 ## Backend
 
 ```env
-DB_HOST=
-DB_PORT=
-DB_USER=
-DB_PASSWORD=
-DB_NAME=
+PORT=5000
 
-JWT_SECRET=
+DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/vetcare?sslmode=require"
 
-EMAIL_USER=
-EMAIL_PASS=
+JWT_SECRET="your_jwt_secret"
+
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=587
+MAIL_SECURE=false
+MAIL_USER="your_email@gmail.com"
+MAIL_PASS="your_app_password"
+MAIL_FROM="VetCare <your_email@gmail.com>"
 ```
-## Docker setup
 
-This project uses PostgreSQL with Prisma ORM.
+---
 
-### Local PostgreSQL with Docker
+# 🐳 Docker Setup
+
+Run PostgreSQL locally:
 
 ```bash
 docker run --name vetcare-postgres \
@@ -281,78 +236,102 @@ docker run --name vetcare-postgres \
   -e POSTGRES_DB=vetcare \
   -p 5432:5432 \
   -d postgres:16
+```
+
 ---
 
-### Apply Prisma migrations
+# 🛠 Prisma Setup
 
-For development:
+Generate Prisma Client:
+
+```bash
+cd backend
+npx prisma generate
+```
+
+Development migrations:
 
 ```bash
 cd backend
 npx prisma migrate dev
-npx prisma generate
+```
 
-For production:
+Production migrations:
+
+```bash
 cd backend
 npx prisma migrate deploy
-npx prisma generate
+```
 
-The production database is hosted in Neon PostgreSQL and is consumed through the DATABASE_URL environment variable.
+---
 
+# ☁ Production Database
+
+The production environment uses **Neon PostgreSQL**.
+
+Configure the connection through:
+
+```env
+DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/vetcare?sslmode=require"
+```
+
+No source code changes are required to switch between local and production environments.
+
+---
 
 # 🚀 Running the Project
 
-## Install dependencies
+Install dependencies:
 
 ```bash
 npm install
 ```
 
-## Start frontend
+Start frontend:
 
 ```bash
 npm run dev
 ```
 
-## Build production
-
-```bash
-npm run build
-```
-
-## Start backend
+Start backend:
 
 ```bash
 npm start
 ```
 
----
+Create production build:
 
-# ☁ Deployment
-
+```bash
+npm run build
+```
 
 ---
 
 # 🔒 Security
 
 - JWT Authentication
-- Password hashing (bcrypt)
+- Password hashing
 - Environment variables
-- CORS Protection
-- Secure TLS connection to Azure MySQL
+- CORS protection
+- Secure PostgreSQL connection
+- Prisma ORM
 - Input validation
-- Express middleware protection
 
 ---
 
 # 📈 Future Improvements
 
-
+- AI-assisted diagnosis
+- SMS notifications
+- Cloud file storage
+- Virtual vaccination card
+- Digital pet ID
+- Appointment prioritization
+- Password recovery
+- Grooming module
 
 ---
 
 # 👨‍💻 Author
 
-**Lucero Fernández **
-
-
+**Lucero Fernández**
