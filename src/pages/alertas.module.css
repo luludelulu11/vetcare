@@ -41,7 +41,8 @@
   --lime: #bae88c;
   --solid-gray: #7f8c8f;
   --dark-red: #9711116b;
- 
+  --al-surface: #ffffff;
+  --avatar-ink: #1c2b33;
 }
 
 
@@ -66,31 +67,61 @@
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 22px;
+  background: transparent;
+  border-radius: 24px;
+  padding: 20px 28px;
+  box-shadow: var(--shadow-header, 0 14px 36px rgba(57, 57, 57, 0.12));
+}
+
+/* Icon chip: same language as the menu action cards */
+.iconChip {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: var(--teal-lighta);
+  color: var(--chip-ink, var(--teal));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Title + subtitle grouped: style/edit them together here */
+.heading {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text-dark);
 }
 
 .title {
   margin: 0;
   font-size: 30px;
   line-height: 1.1;
-  color: var(--text-dark);
+  color: inherit;
   font-weight: 800;
   font-family: "Playfair Display", serif;
 }
 
 .sub {
-  margin: 6px 0 0;
+  margin: 0;
   color: var(--text-soft);
   font-size: 14px;
-
 }
 
+/* Same look as the menu's featured action card */
 .primaryBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   border: 0;
   border-radius: 14px;
-  background:var(--teal);
-  color: var(--white);
+  background: linear-gradient(135deg, var(--brand-dark, #1f6b7a) 0%, var(--brand-mid, #4ba5c8) 140%);
+  color: var(--text-inverse, #ffffff);
   padding: 12px 18px;
-  font-weight: 700;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
   cursor: pointer;
   box-shadow: 0 10px 24px var(--shadow-md);
   font-family: "Playfair Display", serif;
@@ -110,7 +141,7 @@
 }
 
 .statCard {
-  background: var(--white);
+  background: var(--al-surface, #ffffff);
   border: 1px solid var(--stat-card);
   border-radius: 18px;
   padding: 18px;
@@ -197,7 +228,7 @@
 
 .filterBtn {
   border: 1px solid var(--border);
-  background: var(--white);
+  background: var(--al-surface, #ffffff);
   color: var(--text-dark);
   border-radius: 999px;
   padding: 10px 14px;
@@ -216,12 +247,12 @@
 
 .filterBtnActive {
   background: var(--teal-lighta);
-  color: var(--teal-dark);
+  color: var(--tint-ink, #0c4854);
   border-color: var(--teal-mid);
 }
 
 .tableCard {
-  background: var(--white);
+  background: var(--al-surface, #ffffff);
   border: 1px solid var(--border);
   border-radius: 22px;
   overflow: hidden;
@@ -241,7 +272,7 @@
 .table thead th {
   text-align: left;
   padding: 16px 18px;
-  background: var(--white);
+  background: var(--al-surface, #ffffff);
   color:var(--text-soft);
   font-size: 12px;
   text-transform: uppercase;
@@ -306,7 +337,7 @@
   flex-shrink: 0;
   border: 1px solid var(--overlay-bg);
   letter-spacing: 0.02em;
-  
+  color: var(--avatar-ink, #1c2b33);
 }
 
 
@@ -336,60 +367,81 @@
   color: var(--teal);
 }
 
-.outlineBtn {
+/* ─── Icon-only row actions ─────────────────────── */
+.iconBtn {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
   border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-mid);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, border-color 0.2s,
+    transform 0.15s, box-shadow 0.2s;
+}
+
+/* Custom tooltip (light, from data-tip) */
+.iconBtn::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(3px);
+  background: var(--al-surface, #ffffff);
+  color: var(--text-dark);
+  border: 1px solid var(--teal-lighta);
+  box-shadow: 0 6px 18px rgba(31, 101, 122, 0.16);
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 30;
+}
+
+.iconBtn:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.iconBtn:hover {
+  transform: translateY(-1px);
   background: var(--teal-lighta);
-  color: var(--teal-dark);
-  border-radius: 12px;
-  padding: 9px 12px;
-  font-weight: 700;
-  cursor: pointer;
+  border-color: transparent;
+  color: var(--chip-ink, var(--teal));
+  box-shadow: 0 6px 16px var(--hover-shadow);
 }
 
-.outlineBtn2 {
-  border: 1px solid var(--l-green);
-  background: var(--lime);
-  color: var(--overlay-bg);
-  border-radius: 12px;
-  padding: 9px 12px;
-  font-weight: 700;
-  cursor: pointer;
-  margin-left: 12px;
+/* Primary action (Abrir): tinted by default, fills on hover */
+.iconBtnPrimary {
+  background: var(--teal-lighta);
+  border-color: transparent;
+  color: var(--chip-ink, var(--teal));
 }
 
-.outlineBtn3 {
-  border: 1px solid var(--l-green);
-  background: var(--l-blue);
-  color: var(--text-dark);
-  border-radius: 12px;
-  padding: 9px 12px;
-  font-weight: 700;
-  cursor: pointer;
-  margin-left: 12px;
+.iconBtnPrimary:hover {
+  background: var(--teal);
+  color: var(--white);
 }
-.outlineBtn4 {
-  border: 1px solid var(--l-green);
+
+/* Destructive action (Borrar): coral, kept apart from the rest */
+.iconBtnDanger {
+  color: var(--coral);
+  border-color: var(--logout-border);
+}
+
+.iconBtnDanger:hover {
   background: var(--logout-border);
-  color: var(--text-dark);
-  border-radius: 12px;
-  padding: 9px 12px;
-  font-weight: 700;
-  cursor: pointer;
-  margin-left: 12px;
-}
-
-
-.outlineBtn3:hover,
-.outlineBtn4:hover,
-.outlineBtn2:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 28px var(--dark-red);
-  filter: brightness(1.05);
-}
-.outlineBtn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 28px var(--text-mid);
-  filter: brightness(1.05);
+  border-color: transparent;
+  color: #8a2e14;
+  box-shadow: 0 6px 16px var(--logout-shadow);
 }
 
 .emptyState,
@@ -434,23 +486,16 @@
   gap: 14px;
 }
 
-.backBtn {
-  border: 1px solid var(--solid-gray);
-  background: var(--white);
-  color:var(--text-mid);
-  border-radius: 12px;
-  padding: 8px 12px;
-  font-weight: 700;
-  cursor: pointer;
-  font-size: 16px;
+/* Overrides on top of the global .btn-back: the alertas header sits on a
+   light background, so keep readable colors and the original hover bg */
+button.backBtn {
+  color: var(--text-mid);
+  border-color: var(--solid-gray);
 }
 
-.backBtn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 18px var(--hover-shadow);
-  filter: brightness(1.05);
-  color: var(--text-dark);
+button.backBtn:hover {
   background: var(--teal-lighta);
+  color: var(--text-dark);
 }
 
 .actionGroup {
@@ -460,22 +505,3 @@
   align-items: center;
 }
 
-.outlineBtn,
-.outlineBtn2,
-.outlineBtn3,
-.outlineBtn4 {
-  border: 1px solid var(--border);
-  color: var(--teal-dark);
-  border-radius: 10px;
-
-  padding: 6px 10px;     /* 👈 smaller */
-  font-size: 16px;       /* 👈 smaller text */
-  font-weight: 600;
-
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-
-  white-space: nowrap;   /* 👈 prevent "Enviar Correo" from breaking */
-}

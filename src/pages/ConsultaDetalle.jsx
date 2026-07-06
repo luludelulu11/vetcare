@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import "./consultaDetalle.css";
-import { isDemoMode } from "../utils/demoMode";
-import { demoConsultaDetalle } from "../mock/demoData";
+import PageHeader from "../components/PageHeader";
+import Swal from "sweetalert2";
+import { Stethoscope } from "lucide-react";
 
-const API_URL = "http://localhost:5000";
+const API_URL = import.meta.env.VITE_API_URL || "";
 
 function toDatetimeLocal(value) {
   if (!value) return "";
@@ -83,30 +84,6 @@ export default function ConsultaDetalle() {
         setError("");
         setSaveMessage("");
 
-        if (isDemoMode) {
-        const data = demoConsultaDetalle;
-
-        setConsulta(data);
-
-        const nextForm = {
-          doctor_id: data.doctor_id || "",
-          pet_id: data.pet_id || "",
-          client_id: data.client_id || "",
-          fecha: toDatetimeLocal(data.visit_at),
-          motivo: data.reason || "",
-          diagnostico: data.diagnosis || "",
-          observaciones: data.notes || "",
-          estado: data.estado || "",
-          gravedad: data.gravedad || "",
-          proxima_cita: toDatetimeLocal(data.proxima_cita),
-          motivo_seguimiento: data.motivo_seguimiento || "",
-        };
-
-        setForm(nextForm);
-        setInitialForm(nextForm);
-        return;
-      }
-
         const token = localStorage.getItem("token");
 
         if (!token) {
@@ -180,9 +157,24 @@ export default function ConsultaDetalle() {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [editMode, hasChanges]);
 
-  const handleCancelEdit = () => {
+  const confirmDiscard = async (text) => {
+    const result = await Swal.fire({
+      title: "Cambios sin guardar",
+      text,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Sí, salir",
+      cancelButtonText: "Seguir editando",
+      confirmButtonColor: "#e76f51",
+      cancelButtonColor: "#0f6e84",
+      reverseButtons: true,
+    });
+    return result.isConfirmed;
+  };
+
+  const handleCancelEdit = async () => {
     if (hasChanges) {
-      const confirmed = window.confirm(
+      const confirmed = await confirmDiscard(
         "Tienes cambios sin guardar. ¿Seguro que quieres cancelar?"
       );
       if (!confirmed) return;
@@ -193,9 +185,9 @@ export default function ConsultaDetalle() {
     setEditMode(false);
   };
 
-  const handleBack = () => {
+  const handleBack = async () => {
     if (editMode && hasChanges) {
-      const confirmed = window.confirm(
+      const confirmed = await confirmDiscard(
         "Tienes cambios sin guardar. ¿Seguro que quieres salir?"
       );
       if (!confirmed) return;
@@ -305,20 +297,14 @@ export default function ConsultaDetalle() {
   return (
     <div className="cd-page">
       <div className="cd-container">
-        <div className="cd-header">
-          <button
-            type="button"
-            className="cd-back-btn"
-            onClick={handleBack}
-          >
-            ← Volver
-          </button>
-
-          <div className="cd-header-copy">
-            <h1>{editMode ? "Editar consulta" : consulta.reason || "Consulta"}</h1>
-            <p>{consulta.doctor || "Sin doctor"}</p>
-          </div>
-        </div>
+        <PageHeader
+          icon={<Stethoscope size={24} />}
+          title={editMode ? "Editar consulta" : consulta.reason || "Consulta"}
+          subtitle={consulta.doctor || "Sin doctor"}
+          onBack={handleBack}
+          backClassName="btn-back--s80"
+          variant="bare"
+        />
 
         {saveMessage ? <div className="cd-success">{saveMessage}</div> : null}
         {error ? <div className="cd-error">{error}</div> : null}

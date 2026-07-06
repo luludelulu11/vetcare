@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import "./RegistroCliente.css";
-import { isDemoMode } from "../utils/demoMode";
-import { demoClientes, demoMascotas } from "../mock/demoData";
+import PageHeader from "../components/PageHeader";
+import { IdCard } from "lucide-react";
 
 
-const API_URL = "http://localhost:5000";
+const API_URL = import.meta.env.VITE_API_URL || "";
 
 export default function RegistroCliente() {
   const navigate = useNavigate();
@@ -49,34 +49,6 @@ const [clienteForm, setClienteForm] = useState({
 
   useEffect(() => {
     const cargarRegistroCliente = async () => {
-
-
-            if (isDemoMode) {
-        const cliente =
-          demoClientes.find((c) => String(c.id) === String(clienteId)) ||
-          demoClientes[0];
-
-        const mascotasCliente = demoMascotas.filter(
-          (m) =>
-            String(m.clienteId) === String(cliente.id) ||
-            String(m.client_id) === String(cliente.id)
-        );
-
-        setClienteInfo(cliente);
-
-        setClienteForm({
-          nombre: cliente.nombre || "",
-          cedula: cliente.cedula || "",
-          direccion: cliente.direccion || "",
-          correo: cliente.correo || "",
-          telefono: cliente.telefono || "",
-          telefono2: cliente.telefono2 || "",
-        });
-
-        setMascotas(mascotasCliente);
-        setLoading(false);
-        return;
-      }
 
       try {
         setLoading(true);
@@ -384,12 +356,18 @@ const handleSaveCliente = async () => {
   };
 
   const renderMascotaRow = (mascota, index) => (
-    <button
-      type="button"
-      key={mascota.id}
-      className="rcc-pet-row"
-      onClick={() => navigate(`/historial-clinico/${mascota.id}`)}
-    >
+    <div
+        key={mascota.id}
+        className="rcc-pet-row"
+        role="button"
+        tabIndex={0}
+        onClick={() => navigate(`/historial-clinico/${mascota.id}`)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            navigate(`/historial-clinico/${mascota.id}`);
+          }
+        }}
+      >
       <div className="rcc-pet-left">
         <div className={`rcc-pet-avatar ${avatarClassByIndex(index)}`}>
           {getInitials(mascota.nombre)}
@@ -420,6 +398,7 @@ const handleSaveCliente = async () => {
           </span>
         </div>
       </div>
+      
 
       <div className="rcc-pet-right">
         <span className="rcc-pill">{mascota.peso || "Sin peso"}</span>
@@ -429,20 +408,17 @@ const handleSaveCliente = async () => {
         <button
   type="button"
   onClick={async (e) => {
-    e.stopPropagation(); // 🔥 importante para no navegar
+    e.stopPropagation();
 
     try {
       const token = localStorage.getItem("token");
 
-      const res = await fetch(
-        `${API_URL}/api/mascotas/${mascota.id}/toggle`,
-        {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const res = await fetch(`${API_URL}/api/mascotas/${mascota.id}/toggle`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       const data = await res.json();
 
@@ -455,44 +431,30 @@ const handleSaveCliente = async () => {
       alert(err.message);
     }
   }}
-  style={{
-    background: mascota.estado === "activo" ? "#fee2e2" : "#d1fae5",
-    color: mascota.estado === "activo" ? "#991b1b" : "#065f46",
-    border: "none",
-    padding: "6px 10px",
-    borderRadius: "6px",
-    cursor: "pointer",
-    fontSize: "12px",
-  }}
+  className={`pet-status-btn ${
+    mascota.estado === "activo"
+      ? "pet-status-btn--danger"
+      : "pet-status-btn--success"
+  }`}
 >
   {mascota.estado === "activo" ? "Desactivar" : "Activar"}
 </button>
-        <span className="rcc-chevron-btn">›</span>
-      </div>
-    </button>
-  );
+            <span className="chev-btn">›</span>
+          </div>
+        </div>
+      );
 
   return (
     <div className="rcc-page">
       <div className="rcc-container">
-        <header className="rcc-header">
-          <div className="rcc-header-side rcc-header-left">
-            <button
-              type="button"
-              className="rcc-back-btn"
-              onClick={() => navigate("/registro")}
-            >
-              ← volver
-            </button>
-          </div>
-
-          <div className="rcc-header-center">
-            <h1>Registro de usuario</h1>
-            <p>Detalle del usuario y sus mascotas</p>
-          </div>
-
-          
-        </header>
+        <PageHeader
+          icon={<IdCard size={24} />}
+          title="Registro de usuario"
+          subtitle="Detalle del usuario y sus mascotas"
+          onBack={() => navigate("/registro")}
+          backClassName="btn-back--s75"
+         
+        />
 
         {loading ? (
           <div className="rcc-state-card">Cargando registro del usuario...</div>
@@ -508,35 +470,21 @@ const handleSaveCliente = async () => {
                   <button
                     type="button"
                     onClick={handleToggleCliente}
-                    style={{
-                      background: "#0f766e",
-                      color: "#fff",
-                      border: "none",
-                      padding: "8px 12px",
-                      borderRadius: "12px",
-                      cursor: "pointer",
-                    }}
-                  >
+                    className="rc-toggle-btn"
+                    >
                     Cambiar estado (Activo / Inactivo)
                   </button>
                 </div>
 
                 <div style={{ marginBottom: "12px" }}>
   {!editMode ? (
-    <button
-      type="button"
-      onClick={() => setEditMode(true)}
-      style={{
-        background: "#fa7f87",
-        color: "#fff",
-        border: "none",
-        padding: "8px 12px",
-        borderRadius: "12px",
-        cursor: "pointer",
-      }}
-    >
-      Editar datos
-    </button>
+          <button
+        type="button"
+        onClick={() => setEditMode(true)}
+        className="rc-edit-btn"
+      >
+        Editar datos
+      </button>
   ) : (
     <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
       <button

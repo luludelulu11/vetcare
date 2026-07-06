@@ -8,10 +8,9 @@ import {
   validators,
 } from "../utils/formRules";
 import Swal from "sweetalert2";
-import { isDemoMode } from "../utils/demoMode";
-import { demoMascotas, demoClientes } from "../mock/demoData";
 
-const API_URL = "http://localhost:5000";
+
+const API_URL = import.meta.env.VITE_API_URL || "";
 
 export default function Mascotas() {
   const navigate = useNavigate();
@@ -85,12 +84,8 @@ export default function Mascotas() {
   useEffect(() => {
     const loadClientes = async () => {
 
-      if (isDemoMode) {
-      setClientes(demoClientes);
-      return;
-    }
       try {
-        setLoadingClientes(true);
+        
         setError("");
 
         const token = localStorage.getItem("token");
@@ -382,10 +377,10 @@ export default function Mascotas() {
   return (
     <div className="ms-body">
       <div className="ms-card">
-        <div className="ms-header">
-          <h1 className="ms-title">Mascotas</h1>
-          <p className="ms-sub">Registra la información de la mascota</p>
-        </div>
+          <FormHeader
+        title="Registrar mascota"
+        subtitle="Completa la información de la mascota"
+      />
 
         <form className="ms-form" onSubmit={handleGuardar}>
           <div className="ms-grid-2">
@@ -483,7 +478,7 @@ export default function Mascotas() {
           <div className="ms-grid-2">
             <div className="ms-field">
               <label htmlFor="edad">
-                Edad <span className="req">*</span>
+                Edad en años <span className="req">*</span>
               </label>
               <div className="ms-input-wrap">
                 <Calendar size={20} />
@@ -491,12 +486,10 @@ export default function Mascotas() {
                   id="edad"
                   name="edad"
                   type="text"
-                  placeholder="Edad"
-                  value={form.edad ? `${form.edad} años` : ""}
-                  onChange={(e) => {
-                    const clean = e.target.value.replace(" años", "");
-                    handleChange({ target: { name: "edad", value: clean } });
-                  }}
+                  inputMode="decimal"
+                  placeholder="Ej: 3 o 0.6"
+                  value={form.edad}
+                  onChange={handleChange}
                 />
               </div>
               {fieldErrors.edad && (
@@ -582,12 +575,12 @@ export default function Mascotas() {
 
           {error && <small className="cl-error-text">{error}</small>}
 
-          <button className="ms-btn-primary" type="submit" disabled={loading}>
+          <button className="btn-primary-teal" type="submit" disabled={loading}>
             {loading ? "Guardando..." : "Guardar mascota"}
           </button>
 
           <button
-            className="ms-link"
+            className="btn-secondary-light"
             type="button"
             onClick={() => navigate("/menu")}
           >

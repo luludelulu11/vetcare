@@ -250,7 +250,7 @@ body {
   background: var(--teal-tint);
   border: none;
   cursor: pointer;
-  color: var(--brand);
+  color: var(--chip-ink, var(--brand));
   display: flex;
   padding: 6px;
   border-radius: 8px;
@@ -280,10 +280,10 @@ body {
 }
 .topbar__alert-btn {
   position: relative;
-  background: var(--logout-border);
+  background: var(--alert-chip-bg, #fcd5c8);
   border: none;
   cursor: pointer;
-  color: var(--brand);
+  color: var(--alert-chip-ink, var(--brand));
   display: flex;
   padding: 6px;
   border-radius: 8px;
@@ -447,6 +447,7 @@ body {
   border-radius: 14px;
   padding: 16px 18px;
   text-align: left;
+  color: var(--text-primary);
   cursor: pointer;
   position: relative;
   box-shadow: var(--shadow-sm);
@@ -463,7 +464,7 @@ body {
 }
 .action-card--featured {
   grid-column: 1 / -1;
-  background: linear-gradient(135deg, var(--brand) 0%, var(--brand-dark) 300%);
+  background: linear-gradient(135deg, var(--brand-dark) 0%, var(--brand-mid) 140%);
   border-color: transparent;
   color: var(--text-inverse);
   padding: 18px 22px;
@@ -494,7 +495,7 @@ body {
   align-items: center;
   justify-content: center;
   background: var(--teal-tint);
-  color: var(--brand);
+  color: var(--chip-ink, var(--brand));
   flex-shrink: 0;
 }
 .action-card--featured .action-card__icon {
@@ -513,13 +514,14 @@ body {
 .action-card__title {
   font-size: 0.98rem;
   font-weight: 600;
-  color: inherit;
+  color: var(--text-primary);
   letter-spacing: 0.05em;
   margin: 0;
-  font-family:  playfair display, serif;       
+  font-family:  playfair display, serif;
 }
 .action-card--featured .action-card__title {
   font-size: 1.05rem;
+  color: var(--text-inverse);
 }
 .action-card__desc {
   font-size: 0.8rem;
@@ -554,7 +556,7 @@ body {
   align-items: flex-start;
   gap: 10px;
   font-size: 0.83rem;
-  color: var(--brand-dark);
+  color: var(--tip-ink, #1f6b7a);
   font-weight: 400;
   line-height: 1.5;
   font-family: "DM Sans", sans-serif;
@@ -567,15 +569,34 @@ body {
 
 
 /* ─── Responsive ──────────────────────────── */
-@media (max-width: 420px) {
+@media (max-width: 640px) {
+  .main {
+    padding: 20px 14px 40px;
+  }
+
+  .main__greeting-title {
+    font-size: 1.45rem;
+  }
+
   .stats {
     grid-template-columns: 1fr 1fr;
   }
-  .stat-card:last-child {
-    grid-column: 1 / -1;
+
+  .stat-card {
+    padding: 10px;
+    gap: 10px;
   }
-  .main__greeting-title {
-    font-size: 1.45rem;
+
+  .actions-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .action-card {
+    padding: 14px 16px;
+  }
+
+  .action-card--featured {
+    padding: 16px 18px;
   }
 }
 .topbar__logo{

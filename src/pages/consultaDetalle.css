@@ -1,6 +1,6 @@
 .cd-page {
   min-height: 100vh;
-  background: #f5f1e8;
+  background: var(--bg, #fcf9f5);
   padding: 24px;
 }
 
@@ -12,37 +12,11 @@
   transform-origin: top center;
 }
 
-.cd-header {
-  background: #0f6689;
-  color: #ffffff;
-  border-radius: 24px;
-  padding: 22px 24px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  background: var(--teal);
-  border-radius: 24px;
-  padding: 20px 24px;
-  margin-bottom: 24px;
-  position: relative;
-  justify-content: space-between;
-}
-
-.cd-back-btn {
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  background: transparent;
-  color: #fff;
-  border-radius: 16px;
-  padding: 10px 18px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
+/* Header: reusable PageHeader component (styles/pageHeader.css) */
 .cd-edit-btn {
   border: 2px solid rgba(255, 255, 255, 0.2);
-  background: white;
-  color: #064761;
+  background: var(--surface, white);
+  color: var(--ink-deep, #064761);
   border-radius: 16px;
   padding: 10px 18px;
   font-size: 14px;
@@ -50,8 +24,7 @@
   cursor: pointer;
   position: top-right;
 }
-.cd-edit-btn:hover,
-.cd-back-btn:hover {
+.cd-edit-btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 8px 28px rgba(90, 175, 232, 0.45);
   filter: brightness(1.05);
@@ -59,26 +32,6 @@
 
 
 
-.cd-header-copy h1 {
-  margin: 0 0 4px;
-  color: #fff;
-  font-size: 18px;
-  font-weight: 700;
-  font-family: sans-serif;
-}
-
-.cd-header-copy p {
-  margin: 0;
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 14px;
-}
-.cd-header-left {
-  justify-content: flex-start;
-}
-
-.cd-header-right {
-  justify-content: flex-end;
-}
 /* CARDS */
 
 .cd-card {
@@ -89,30 +42,9 @@
   margin-bottom: 18px;
 }
 
-.cd-back-btn {
-  background: transparent;
-  color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  border-radius: 14px;
-  padding: 10px 16px;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.cd-header-copy h1 {
-  margin: 0;
-  font-size: 2rem;
-  line-height: 1.1;
-  font-family: serif;
-}
-
-.cd-header-copy p {
-  margin: 6px 0 0;
-  color: rgba(255, 255, 255, 0.85);
-}
 
 .cd-card {
-  background: #ffffff;
+  background: var(--card-bg, #ffffff);
   border: 1px solid #d9e0df;
   border-radius: 24px;
   padding: 18px;
@@ -148,17 +80,17 @@
   align-items: center;
   gap: 14px;
   padding: 12px 14px;
-  background: #eef5f1;
+  background: var(--soft-mint, #eef5f1);
   border-radius: 18px;
 }
 
 .cd-info-row span {
-  color: #111827;
+  color: var(--ink-strong, #111827);
   font-weight: 700;
 }
 
 .cd-info-row strong {
-  color: #527274;
+  color: var(--ink-teal-gray, #527274);
   text-align: right;
   font-weight: 600;
 }
@@ -172,20 +104,31 @@
   font-size: 13px;
   font-weight: 700;
   line-height: 1;
+  text-transform: capitalize;
 }
 
 .cd-info-pill--open {
-  background: #dff3ea;
-  color: #0f8a5f;
+  background: var(--pill-open-bg, #dff3ea);
+  color: var(--pill-open-ink, #0f8a5f);
 }
 
 .cd-info-pill--moderate {
-  background: #f8e9c9;
-  color: #8a5a00;
+  background: var(--pill-moderate-bg, #f8e9c9);
+  color: var(--pill-moderate-ink, #8a5a00);
+}
+
+/* Higher specificity: keep pill ink from being overridden by
+   the .cd-info-row span/strong text rules */
+.cd-info-row .cd-info-pill--open {
+  color: var(--pill-open-ink, #0f8a5f);
+}
+
+.cd-info-row .cd-info-pill--moderate {
+  color: var(--pill-moderate-ink, #8a5a00);
 }
 .cd-text {
   margin: 0;
-  color: #1f2937;
+  color: var(--ink-slate, #1f2937);
   white-space: pre-wrap;
 }
 
@@ -200,19 +143,19 @@
 }
 
 .cd-field label {
-  color: #334155;
+  color: var(--ink-slate-mid, #334155);
   font-weight: 600;
 }
 
 .cd-field input,
 .cd-field textarea {
   width: 100%;
-  border: 1px solid #cfd8dc;
+  border: 1px solid var(--field-border, #cfd8dc);
   border-radius: 12px;
   padding: 12px 14px;
   font-size: 1rem;
-  background: #ffffff;
-  color: #0f172a;
+  background: var(--surface, #ffffff);
+  color: var(--ink-navy, #0f172a);
   box-sizing: border-box;
 }
 
@@ -228,7 +171,7 @@
   bottom: 0;
   margin-top: 18px;
   padding-top: 14px;
-  background: #ffffff;
+  background: var(--surface, #ffffff);
   border-top: 1px solid #eef2f2;
   display: flex;
   justify-content: space-between;
@@ -253,8 +196,20 @@
 }
 
 .cd-btn-primary {
-  background: #0f5776;
+  background: var(--teal, #0f6e84);
   color: #ffffff;
+  transition: transform 0.15s, box-shadow 0.2s, filter 0.2s, background 0.2s;
+}
+
+.cd-btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 28px var(--hover-shadow, #2a9d8066);
+  filter: brightness(1.05);
+}
+
+.cd-btn-primary:active:not(:disabled) {
+  background: var(--teal, #0f6e84);
+  transform: translateY(1px);
 }
 
 .cd-btn-primary:disabled {
@@ -263,17 +218,24 @@
 }
 
 .cd-btn-secondary {
-  background: #e5e7eb;
-  color: #111827;
+  background: var(--neutral-btn-bg, #e5e7eb);
+  color: var(--ink-strong, #111827);
+}
+
+.cd-btn-secondary:hover{
+  transform: translateY(-1px);
+  background: var(--surface);
+  box-shadow: 0 6px 18px #b5dff6;
+  filter: brightness(1.02);
 }
 
 .cd-edit-badge {
   font-weight: 700;
-  color: #0f172a;
+  color: var(--ink-navy, #0f172a);
 }
 
 .cd-unsaved {
-  color: #667085;
+  color: var(--muted-slate, #667085);
   font-weight: 600;
 }
 
@@ -286,36 +248,25 @@
 }
 
 .cd-loading {
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--neutral-btn-bg, #e5e7eb);
 }
 
 .cd-error {
-  background: #fef2f2;
-  color: #991b1b;
-  border: 1px solid #fecaca;
+  background: var(--danger-bg-soft, #fef2f2);
+  color: var(--danger-text, #991b1b);
+  border: 1px solid var(--danger-border, #fecaca);
 }
 
 .cd-success {
-  background: #ecfdf5;
-  color: #065f46;
-  border: 1px solid #a7f3d0;
+  background: var(--success-bg-soft, #ecfdf5);
+  color: var(--success-text, #065f46);
+  border: 1px solid var(--success-border, #a7f3d0);
 }
 
 @media (max-width: 640px) {
   .cd-page {
     padding: 14px;
-  }
-
-  .cd-header {
-    border-radius: 18px;
-    padding: 18px;
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .cd-header-copy h1 {
-    font-size: 1.6rem;
   }
 
   .cd-card {

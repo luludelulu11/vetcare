@@ -1,16 +1,14 @@
 import { useMemo, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import "./login.css";
-import { User, Lock, ShieldCheck } from "lucide-react";
-import { isDemoMode } from "../utils/demoMode";
-import { demoUser } from "../mock/demoData";
+import { User, Lock, Eye, EyeOff } from "lucide-react";
+import SecureNote from "../components/SecureNote";
 
 
 
 export default function Login() {
-  console.log("VITE_DEMO =", import.meta.env.VITE_DEMO);
-  const navigate = useNavigate();
   
+  const navigate = useNavigate();
   const [usuario, setUsuario] = useState("");
   const [contrasena, setContrasena] = useState("");
   const [showPass, setShowPass] = useState(false);
@@ -23,21 +21,6 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    const isDemo = import.meta.env.VITE_DEMO === "true";
-
-    const demoUserData = {
-      id: "demo-admin",
-      username: "demo@vetcare.com",
-      role: "ADMIN",
-    };
-
-    if (isDemo) {
-      localStorage.setItem("token", "demo-token");
-      localStorage.setItem("user", JSON.stringify(demoUserData));
-      navigate("/menu", { replace: true });
-      return;
-    }
 
     if (!usuario.trim() || !contrasena.trim()) {
       setError("Nombre de usuario y contraseña son obligatorios.");
@@ -105,7 +88,7 @@ export default function Login() {
 
           <form onSubmit={handleSubmit}>
             <div className="vc-field">
-              <label htmlFor="usuario">Nombre de usuario <span class = "req">*</span></label>
+              <label htmlFor="usuario">Nombre de usuario <span className="req">*</span></label>
               <div className="vc-input-wrap">
                 <input
                   type="text"
@@ -120,7 +103,7 @@ export default function Login() {
             </div>
 
             <div className="vc-field">
-              <label htmlFor="contrasena">Contraseña <span class = "req">*</span></label>
+              <label htmlFor="contrasena">Contraseña <span className="req">*</span></label>
               <div className="vc-input-wrap">
                 <input
                   type={passType}
@@ -138,7 +121,7 @@ export default function Login() {
                   onClick={() => setShowPass((v) => !v)}
                   aria-label={showPass ? "Hide password" : "Show password"}
                 >
-                  {showPass ? "👁‍🗨" : "👁"}
+                  {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>
@@ -149,16 +132,13 @@ export default function Login() {
               </div>
             )}
 
-            <button className="vc-btn-login" type="submit" disabled={loading}>
+            <button className="btn-primary-teal" type="submit" disabled={loading}>
               {loading ? "Checking..." : "Ingresar"}
             </button>
 
             
 
-            <div className="cl-note">
-              <ShieldCheck size={16} />
-    <span>Secure encrypted connection</span>
-            </div>
+            <SecureNote />
           </form>
         </div>
       </div>

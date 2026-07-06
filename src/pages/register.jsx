@@ -1,6 +1,6 @@
 import "./register.css";
 import { useState } from "react";
-import { User, Mail, Lock, ShieldCheck, Phone, IdCard } from "lucide-react";
+import { User, Mail, Lock, Phone, IdCard } from "lucide-react";
 import { useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -8,11 +8,10 @@ import {
   validateFields,
   validators,
 } from "../utils/formRules";
-import { isDemoMode } from "../utils/demoMode";
-import { demoClientes } from "../mock/demoData";
+import FormHeader from "../components/FormHeader";
+import SecureNote from "../components/SecureNote";
 
-
-
+const API_URL = import.meta.env.VITE_API_URL || "";
 
 export default function CreateAccountVetCare() {
   const navigate = useNavigate();
@@ -28,28 +27,28 @@ export default function CreateAccountVetCare() {
   });
 
   useEffect(() => {
-  const token = localStorage.getItem("token");
-  const userRaw = localStorage.getItem("user");
+    const token = localStorage.getItem("token");
+    const userRaw = localStorage.getItem("user");
 
-  if (!token || !userRaw) {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    navigate("/", { replace: true });
-    return;
-  }
-
-  try {
-    const user = JSON.parse(userRaw);
-
-    if (user.role !== "ADMIN") {
-      navigate("/menu", { replace: true });
+    if (!token || !userRaw) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      navigate("/", { replace: true });
+      return;
     }
-  } catch {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    navigate("/", { replace: true });
-  }
-}, [navigate]);
+
+    try {
+      const user = JSON.parse(userRaw);
+
+      if (user.role !== "ADMIN") {
+        navigate("/menu", { replace: true });
+      }
+    } catch {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      navigate("/", { replace: true });
+    }
+  }, [navigate]);
 
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
@@ -152,17 +151,11 @@ export default function CreateAccountVetCare() {
       navigate("/", { replace: true });
       return;
     }
-
-     if (isDemoMode) {
-  setMascotas(demoMascotas);
-  setLoading(false);
-  return;
-}
-
+    
     try {
       setLoading(true);
 
-      const response = await fetch("http://localhost:5000/api/auth/register", {
+      const response = await fetch(`${API_URL}/api/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -205,156 +198,151 @@ export default function CreateAccountVetCare() {
   };
 
   return (
-    <div className="cl-body">
-      <div className="cl-card">
-        <div className="cl-header">
-          <div className="cl-header-circle cl-header-circle--left"></div>
-          <div className="cl-header-circle cl-header-circle--right"></div>
-
+    <div className="au-body">
+      <div className="au-card">
+        <FormHeader
+          title="Agregar usuario interno"
+          subtitle="Llena la informacion para continuar"
+        >
           <button
             type="button"
-            className="cl-header-back"
+            className="btn-back btn-back--corner"
             onClick={() => navigate("/menu")}
+            aria-label="Volver al menú"
           >
-            ← Volver
+            ←
           </button>
+        </FormHeader>
 
-          <div className="cl-header-content">
-            <h1 className="cl-title">Agregar usuario</h1>
-            <p className="cl-sub">Llena la informacion para continuar</p>
-          </div>
-        </div>
+        <div className="au-form-body">
+          <div className="au-form-container">
+            <form className="au-form" onSubmit={handleSubmit}>
+              <div className="au-form-grid">
+                <div className="au-field">
+                  <label>NOMBRE <span className="req">*</span></label>
+                  <div className="au-input-wrap">
+                    <User size={18} />
+                    <input
+                      type="text"
+                      name="nombre"
+                      placeholder="Introduce tu nombre"
+                      value={formData.nombre}
+                      onChange={handleChange}
+                    />
+                  </div>
+                  {fieldErrors.nombre && <small>{fieldErrors.nombre}</small>}
+                </div>
 
-        <div className="cl-form-body">
-          <div className="cl-form-container">
-            <form className="cl-form" onSubmit={handleSubmit}>
-  <div className="cl-form-grid">
-    <div className="cl-field">
-      <label>NOMBRE <span className="req">*</span></label>
-      <div className="cl-input-wrap">
-        <User size={18} />
-        <input
-          type="text"
-          name="nombre"
-          placeholder="Introduce tu nombre"
-          value={formData.nombre}
-          onChange={handleChange}
-        />
-      </div>
-      {fieldErrors.nombre && <small>{fieldErrors.nombre}</small>}
-    </div>
+                <div className="au-field">
+                  <label>APELLIDO <span className="req">*</span></label>
+                  <div className="au-input-wrap">
+                    <User size={18} />
+                    <input
+                      type="text"
+                      name="apellido"
+                      placeholder="Introduce tu apellido"
+                      value={formData.apellido}
+                      onChange={handleChange}
+                    />
+                  </div>
+                  {fieldErrors.apellido && <small>{fieldErrors.apellido}</small>}
+                </div>
 
-    <div className="cl-field">
-      <label>APELLIDO <span className="req">*</span></label>
-      <div className="cl-input-wrap">
-        <User size={18} />
-        <input
-          type="text"
-          name="apellido"
-          placeholder="Introduce tu apellido"
-          value={formData.apellido}
-          onChange={handleChange}
-        />
-      </div>
-      {fieldErrors.apellido && <small>{fieldErrors.apellido}</small>}
-    </div>
+                <div className="au-field">
+                  <label>CÉDULA <span className="req">*</span></label>
+                  <div className="au-input-wrap">
+                    <IdCard size={18} />
+                    <input
+                      type="text"
+                      name="cedula"
+                      placeholder="Introduce tu cédula"
+                      value={formData.cedula}
+                      onChange={handleChange}
+                      maxLength={11}
+                    />
+                  </div>
+                  {fieldErrors.cedula && <small>{fieldErrors.cedula}</small>}
+                </div>
 
-    <div className="cl-field">
-      <label>CÉDULA <span className="req">*</span></label>
-      <div className="cl-input-wrap">
-        <IdCard size={18} />
-        <input
-          type="text"
-          name="cedula"
-          placeholder="Introduce tu cédula"
-          value={formData.cedula}
-          onChange={handleChange}
-          maxLength={11}
-        />
-      </div>
-      {fieldErrors.cedula && <small>{fieldErrors.cedula}</small>}
-    </div>
+                <div className="au-field">
+                  <label>TELÉFONO <span className="req">*</span></label>
+                  <div className="au-input-wrap">
+                    <Phone size={18} />
+                    <input
+                      type="text"
+                      name="telefono"
+                      placeholder="Introduce tu teléfono"
+                      value={formData.telefono}
+                      onChange={handleChange}
+                      maxLength={10}
+                    />
+                  </div>
+                  {fieldErrors.telefono && <small>{fieldErrors.telefono}</small>}
+                </div>
 
-    <div className="cl-field">
-      <label>TELÉFONO <span className="req">*</span></label>
-      <div className="cl-input-wrap">
-        <Phone size={18} />
-        <input
-          type="text"
-          name="telefono"
-          placeholder="Introduce tu teléfono"
-          value={formData.telefono}
-          onChange={handleChange}
-          maxLength={10}
-        />
-      </div>
-      {fieldErrors.telefono && <small>{fieldErrors.telefono}</small>}
-    </div>
+                <div className="au-field au-field-full">
+                  <label>EMAIL <span className="req">*</span></label>
+                  <div className="au-input-wrap">
+                    <Mail size={18} />
+                    <input
+                      type="email"
+                      name="email"
+                      placeholder="Introduce tu dirección de email"
+                      value={formData.email}
+                      onChange={handleChange}
+                    />
+                  </div>
+                  {fieldErrors.email && <small>{fieldErrors.email}</small>}
+                </div>
 
-    <div className="cl-field cl-field-full">
-      <label>EMAIL <span className="req">*</span></label>
-      <div className="cl-input-wrap">
-        <Mail size={18} />
-        <input
-          type="email"
-          name="email"
-          placeholder="Introduce tu dirección de email"
-          value={formData.email}
-          onChange={handleChange}
-        />
-      </div>
-      {fieldErrors.email && <small>{fieldErrors.email}</small>}
-    </div>
+                <div className="au-field">
+                  <label>CONTRASEÑA <span className="req">*</span></label>
+                  <div className="au-input-wrap">
+                    <Lock size={18} />
+                    <input
+                      type="password"
+                      name="password"
+                      placeholder="Introduce una contraseña"
+                      value={formData.password}
+                      onChange={handleChange}
+                    />
+                  </div>
+                  {fieldErrors.password && <small>{fieldErrors.password}</small>}
+                </div>
 
-    <div className="cl-field">
-      <label>CONTRASEÑA <span className="req">*</span></label>
-      <div className="cl-input-wrap">
-        <Lock size={18} />
-        <input
-          type="password"
-          name="password"
-          placeholder="Introduce una contraseña"
-          value={formData.password}
-          onChange={handleChange}
-        />
-      </div>
-      {fieldErrors.password && <small>{fieldErrors.password}</small>}
-    </div>
+                <div className="au-field">
+                  <label>CONFIRMAR CONTRASEÑA <span className="req">*</span></label>
+                  <div className="au-input-wrap">
+                    <Lock size={18} />
+                    <input
+                      type="password"
+                      name="confirmPassword"
+                      placeholder="Confirma tu contraseña"
+                      value={formData.confirmPassword}
+                      onChange={handleChange}
+                    />
+                  </div>
+                  {fieldErrors.confirmPassword && (
+                    <small>{fieldErrors.confirmPassword}</small>
+                  )}
+                </div>
+              </div>
 
-    <div className="cl-field">
-      <label>CONFIRMAR CONTRASEÑA <span className="req">*</span></label>
-      <div className="cl-input-wrap">
-        <Lock size={18} />
-        <input
-          type="password"
-          name="confirmPassword"
-          placeholder="Confirma tu contraseña"
-          value={formData.confirmPassword}
-          onChange={handleChange}
-        />
-      </div>
-      {fieldErrors.confirmPassword && (
-        <small>{fieldErrors.confirmPassword}</small>
-      )}
-    </div>
-  </div>
+              {error && <p style={{ color: "red", marginTop: "10px" }}>{error}</p>}
+              {success && (
+                <p style={{ color: "green", marginTop: "10px" }}>{success}</p>
+              )}
 
-  {error && <p style={{ color: "red", marginTop: "10px" }}>{error}</p>}
-  {success && <p style={{ color: "green", marginTop: "10px" }}>{success}</p>}
+              <button type="submit" className="btn-primary-teal" disabled={loading}>
+                {loading ? "CREANDO..." : "CREAR CUENTA"}
+              </button>
 
-  <button type="submit" className="cl-btn-primary" disabled={loading}>
-    {loading ? "CREANDO..." : "CREAR CUENTA"}
-  </button>
+              <Link to="/" className="btn-secondary-light">
+                Ir al Login
+              </Link>
 
-  <Link to="/" className="cl-btn-secondary">
-    Ir al Login
-  </Link>
-
-  <div className="cl-note">
-    <ShieldCheck size={16} />
-    <span>Secure encrypted connection</span>
-  </div>
-</form>
+              <SecureNote />
+            </form>
           </div>
         </div>
       </div>

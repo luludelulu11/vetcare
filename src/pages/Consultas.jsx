@@ -10,10 +10,8 @@ import {
   finalizeDecimal,
 } from "../utils/formRules";
 import Swal from "sweetalert2";
-import { isDemoMode } from "../utils/demoMode";
-import { demoClientes } from "../mock/demoData";
 
-const API_URL = "http://localhost:5000";
+const API_URL = import.meta.env.VITE_API_URL || "";
 
 const STATUS_OPTS = [
   { id: "open", label: "Abierta", colorClass: styles.statusOpen },
@@ -443,6 +441,7 @@ export default function ConsultaForm({ onSave }) {
 
   useEffect(() => {
     const loadMascotas = async () => {
+
       try {
         const token = localStorage.getItem("token");
 
@@ -506,6 +505,8 @@ export default function ConsultaForm({ onSave }) {
 
   useEffect(() => {
     const loadClientes = async () => {
+
+
       try {
         const token = localStorage.getItem("token");
 
@@ -567,6 +568,8 @@ export default function ConsultaForm({ onSave }) {
 
   useEffect(() => {
     const loadDoctores = async () => {
+
+
       try {
         const token = localStorage.getItem("token");
 
@@ -622,6 +625,7 @@ export default function ConsultaForm({ onSave }) {
 
   useEffect(() => {
     const loadTiposConsulta = async () => {
+
       try {
         const token = localStorage.getItem("token");
 
@@ -921,6 +925,8 @@ export default function ConsultaForm({ onSave }) {
   };
 
   const handleSave = async () => {
+
+
     for (let i = 0; i < STEP_TABS.length; i++) {
       if (!validateStep(i)) {
         setActiveStep(i);
@@ -1081,8 +1087,13 @@ export default function ConsultaForm({ onSave }) {
     <div className={styles.wrap}>
       <div className={styles.shell}>
         <div className={styles.hero}>
-          <button type="button" className={styles.back} onClick={() => navigate(-1)}>
-            ← Volver
+          <button
+            type="button"
+            className="btn-back"
+            onClick={() => navigate(-1)}
+            aria-label="Volver"
+          >
+            ←
           </button>
 
           <div className={styles.heroMid}>

@@ -24,6 +24,10 @@
   --text-mid: #4A6070;
   --text-light: #8BA3B0;
    --cremita: #fff5e8;
+    --brand-accent-soft-light: #95ebeddd;
+  
+ 
+ 
 
   /* mapped aliases so you don't have to rewrite everything */
 
@@ -46,7 +50,7 @@
   justify-content: center;
   padding: 32px;
 
-  background-color: #fcf9f5;
+  background-color: var(--bg, #fcf9f5);
   background-image:
     radial-gradient(ellipse at 20% 50%, rgba(75, 170, 200, 0.08) 0%, transparent 60%),
     radial-gradient(ellipse at 80% 20%, rgba(232, 168, 66, 0.08) 0%, transparent 45%),
@@ -58,7 +62,7 @@
 /* Tarjeta centrada y responsive */
 .vc-card {
   width: min(520px, 96vw);
-  background: white;
+  background: var(--surface, white);
   border-radius: 24px;
   box-shadow:
     0 4px 10px rgba(28, 43, 51, 0.04),
@@ -66,6 +70,7 @@
     0 0 0 1px rgba(26, 74, 90, 0.06);
   overflow: hidden;
   animation: vc-cardIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  scale: 0.95;
 }
 
 @keyframes vc-cardIn {
@@ -143,7 +148,7 @@
 }
 
 .vc-brand-name span {
-  color: var(--teal-pali);
+  color: var(--brand-accent-soft-light);
 }
 
 .vc-header-tagline {
@@ -210,15 +215,15 @@
   border-radius: 12px;
   font-family: inherit;
   font-size: 14px;
-  color: black;
-  background: #f7fbfc;
+  color: var(--ink, black);
+  background: var(--input-bg, #f7fbfc);
   outline: none;
   transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
 }
 
 .vc-field input:focus {
   border-color: var(--teal-light);
-  background: #fff;
+  background: var(--surface, #fff);
   box-shadow: 0 0 0 4px rgba(75, 170, 200, 0.14);
 }
 
@@ -236,6 +241,9 @@
 .vc-toggle-pass {
   position: absolute;
   right: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
   cursor: pointer;
@@ -292,48 +300,7 @@
   text-decoration: underline;
 }
 
-/* botón */
-.vc-btn-login {
-  width: 100%;
-  padding: 15px;
-  background: linear-gradient(135deg, var(--teal-deepa) 30%, #098eae 90%);
-  color: #fff;
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.8px;
-  text-transform: uppercase;
-  border: none;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: transform 0.15s, box-shadow 0.2s, filter 0.2s;
-  box-shadow: 0 8px 24px rgba(26, 74, 90, 0.22);
-  position: relative;
-  overflow: hidden;
-}
-
-.vc-btn-login::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), transparent);
-  pointer-events: none;
-}
-
-.vc-btn-login:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 28px rgba(90, 232, 211, 0.45);
-  filter: brightness(1.05);
-}
-
-.vc-btn-login:active {
-  transform: translateY(1px);
-}
-
-.vc-btn-login:disabled {
-  opacity: 0.75;
-  cursor: not-allowed;
-}
+/* Botón principal: reusable .btn-primary-teal (styles/buttons.css) */
 
 /* footer */
 .vc-security-badge {
@@ -364,45 +331,7 @@
   .vc-card-header { padding: 28px 22px 24px; }
   .vc-card-body { padding: 26px 22px 26px; }
 }
-/* BOTÓN REGISTRO */
-
-.vc-btn-register {
-  display: block;
-  width: 100%;
-  margin-top: 14px;
-  padding: 15px;
-  border-radius: 12px;
-  border: 1.5px solid #E7E0D7;
-  background: #f3f6f7;
-  color: rgb(3, 72, 104);
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.8px;
-  text-transform: uppercase;
-  text-align: center;
-  text-decoration: none;
-  cursor: pointer;
-  transition: transform 0.15s, box-shadow 0.2s, background 0.2s, filter 0.2s;
-}
-
-.vc-btn-register:hover {
-  transform: translateY(-1px);
-  background: var(--warm-white);
-  box-shadow: 0 8px 24px rgba(26, 74, 90, 0.10);
-  filter: brightness(1.01);
-}
-
-.vc-btn-register:hover{
-  transform: translateY(-1px);
-  background: #fff;
-  box-shadow: 0 8px 24px rgba(90, 175, 232, 0.25);
-  filter: brightness(1.02);
-}
-
-.vc-btn-register:active{
-  transform: translateY(1px);
-}
+/* Botón secundario: reusable .btn-secondary-light (styles/buttons.css) */
 .vc-form-title::before {
   content: "";
   display: block;

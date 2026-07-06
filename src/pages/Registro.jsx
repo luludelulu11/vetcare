@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Registro.css";
+import PageHeader from "../components/PageHeader";
+import { Users } from "lucide-react";
 import Select from "react-select";
-import { isDemoMode } from "../utils/demoMode";
-import { demoRegistro } from "../mock/demoData";
 
-const API_URL = "http://localhost:5000";
+
+const API_URL = import.meta.env.VITE_API_URL || "";
 
 
 
@@ -66,13 +67,7 @@ const API_URL = "http://localhost:5000";
         const estadoQuery =
           estadoFiltro === "todos" ? "" : `?estado=${estadoFiltro}`;
 
-           if (isDemoMode) {
-          setClientes(demoRegistro.clientes);
-          setMascotas(demoRegistro.mascotas);
-          setLoading(false);
-          return;
-        }
-
+        
         const [clientesResponse, mascotasResponse] = await Promise.all([
           fetch(`${API_URL}/api/clientes${estadoQuery}`, {
             headers: {
@@ -403,7 +398,7 @@ const API_URL = "http://localhost:5000";
           {cliente.mascotasTotal > 0 ? cliente.ultimaMascota : ""}
         </span>
 
-        <span className="rg-chevron">›</span>
+        <span className="chev-btn">›</span>
       </div>
     </button>
   );
@@ -411,26 +406,19 @@ const API_URL = "http://localhost:5000";
   return (
     <div className="rg-page">
       <div className="rg-container">
-        <header className="rg-hero">
-          <button
-            type="button"
-            className="rg-hero-back"
-            onClick={() => navigate("/menu")}
-          >
-            <span className="rg-hero-back-arrow">←</span>
-            <span>volver</span>
-          </button>
-
-          <div className="rg-hero-copy">
-            <h1>Registro</h1>
-            <p>Usuarios y mascotas registradas</p>
-          </div>
-
+        <PageHeader
+          variant="hero"
+          icon={<Users size={24} />}
+          title="Registro"
+          subtitle="Usuarios y mascotas registradas"
+          onBack={() => navigate("/menu")}
+          backClassName="btn-back--s65"
+        >
           <div className="rg-hero-stats">
             <strong>{totalMascotas}</strong>
             <span>Mascotas en total</span>
           </div>
-        </header>
+        </PageHeader>
 
         <div className="rg-toolbar">
           <div className="rg-search-wrap">

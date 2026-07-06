@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styles from "./alertas.module.css";
+import { Bell, ExternalLink, Pencil, Mail, Trash2 } from "lucide-react";
 import Swal from "sweetalert2";
-import { isDemoMode } from "../utils/demoMode";
-import { demoClientes } from "../mock/demoData";
+
+
+const API_URL = import.meta.env.VITE_API_URL || "";
+
 
 function formatDate(dateString) {
   if (!dateString) return "—";
@@ -122,6 +125,8 @@ export default function Alertas() {
 
   useEffect(() => {
     const loadAlertas = async () => {
+
+
       try {
         setLoading(true);
         setError("");
@@ -135,13 +140,9 @@ export default function Alertas() {
           return;
         }
 
-        if (isDemoMode) {
-  setAlertas(demoAlertas);
-  setLoading(false);
-  return;
-}
+      
 
-        const response = await fetch("http://localhost:5000/api/alertas", {
+        const response = await fetch(`${API_URL}/api/alertas`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -234,7 +235,7 @@ export default function Alertas() {
 
   try {
     const response = await fetch(
-      `http://localhost:5000/api/consultas/${id}/enviar-recordatorio`,
+      `${API_URL}/api/consultas/${id}/enviar-recordatorio`,
       {
         method: "POST",
         headers: {
@@ -307,7 +308,7 @@ export default function Alertas() {
     if (!result.isConfirmed) return;
 
       const response = await fetch(
-        `http://localhost:5000/api/alertas/${id}/quitar`,
+        `${API_URL}/api/alertas/${id}/quitar`,
         {
           method: "PUT",
           headers: {
@@ -426,18 +427,23 @@ export default function Alertas() {
           <div className={styles.headerLeft}>
             <button
               type="button"
-              className={styles.backBtn}
+              className={`btn-back btn-back--s90 ${styles.backBtn}`}
               onClick={() => navigate(-1)}
+              aria-label="Volver"
             >
-              ← Volver
+              ←
             </button>
 
-            <div>
+            <span className={styles.iconChip} aria-hidden="true">
+              <Bell size={24} />
+            </span>
+
+            <hgroup className={styles.heading}>
               <h1 className={styles.title}>Alertas</h1>
               <p className={styles.sub}>
                 Próximas citas, seguimientos y pendientes clínicos
               </p>
-            </div>
+            </hgroup>
           </div>
 
           <button
@@ -445,7 +451,13 @@ export default function Alertas() {
             className={styles.primaryBtn}
             onClick={() => navigate("/consultas")}
           >
-            + Nueva consulta
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="12" y1="18" x2="12" y2="12" />
+              <line x1="9" y1="15" x2="15" y2="15" />
+            </svg>
+            <span>Nueva consulta</span>
           </button>
         </div>
 
@@ -614,34 +626,42 @@ export default function Alertas() {
                         <div className={styles.actionGroup}>
                           <button
                             type="button"
-                            className={styles.outlineBtn}
+                            className={`${styles.iconBtn} ${styles.iconBtnPrimary}`}
                             onClick={() => navigate(`/consulta/${item.consultaId}`)}
+                            data-tip="Abrir consulta"
+                            aria-label="Abrir consulta"
                           >
-                            Abrir
+                            <ExternalLink size={17} />
                           </button>
 
                           <button
                             type="button"
-                            className={styles.outlineBtn2}
+                            className={styles.iconBtn}
                             onClick={() => navigate(`/consulta/${item.consultaId}?edit=1`)}
+                            data-tip="Editar consulta"
+                            aria-label="Editar consulta"
                           >
-                            Editar
+                            <Pencil size={17} />
                           </button>
 
                           <button
                             type="button"
-                            className={styles.outlineBtn3}
+                            className={styles.iconBtn}
                             onClick={() => handleEnviarCorreo(item.consultaId)}
+                            data-tip="Enviar correo al tutor"
+                            aria-label="Enviar correo al tutor"
                           >
-                            Enviar Correo
+                            <Mail size={17} />
                           </button>
 
                           <button
                             type="button"
-                            className={styles.outlineBtn4}
+                            className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
                             onClick={() => handleDeleteAlerta(item.consultaId)}
+                            data-tip="Borrar alerta"
+                            aria-label="Borrar alerta"
                           >
-                            Borrar
+                            <Trash2 size={17} />
                           </button>
                         </div>
                       </td></tr>

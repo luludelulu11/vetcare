@@ -47,7 +47,7 @@ body {
 .rcc-page {
   min-height: 100vh;
   padding: 32px;
-  background: #fcf9f5;
+  background: var(--bg, #fcf9f5);
   font-family: "DM Sans", sans-serif;
   color: var(--text-dark);
   transform: scale(0.75);
@@ -60,20 +60,8 @@ body {
   margin: 0 auto;
 }
 
-.rcc-header {
-  display:grid;
-  align-items: center;
-  gap: 20px;
-  background: var(--teal);
-  grid-template-columns: 160px 1fr 160px;
-  border-radius: 28px;
-  padding: 28px 32px;
-  margin-bottom: 22px;
-   position: relative;
-
-}
-.rcc-edit-btn,
-.rcc-back-btn {
+/* Header: reusable PageHeader component (styles/pageHeader.css) */
+.rcc-edit-btn {
   border: 2px solid rgba(255, 255, 255, 0.18);
   background: transparent;
   color: #fff;
@@ -85,40 +73,68 @@ body {
   cursor: pointer;
 }
 .rcc-edit-btn {
-  background: white;
+  background: var(--surface, white);
   color: #064761;
 }
 
-.rcc-header-left{
- justify-content: flex-start;
+.rc-toggle-btn {
+  background: #0f766e;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.25s ease;
 }
 
-.rcc-header-right {
-  justify-content: flex-end;
+.rc-toggle-btn:hover {
+  background: #115e59;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 18px rgba(15, 118, 110, 0.25);
 }
-.rcc-header-center {
-  text-align: center;
+
+.rc-toggle-btn:active {
+  transform: scale(0.97);
+}
+
+.rc-toggle-btn:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+
+
+.rc-edit-btn {
+  background: var(--danger-btn, #fa7f87);
   color: #fff;
-  font-family: "Playfair Display", serif;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.25s ease;
 }
 
-.rcc-edit-btn:hover, 
-.rcc-back-btn:hover {
+.rc-edit-btn:hover {
+  background: var(--danger-btn-hover, #f96a74);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 18px rgba(250, 127, 135, 0.35);
+}
+
+.rc-edit-btn:active {
+  transform: scale(0.97);
+}
+
+.rc-edit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.rcc-edit-btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 8px 28px rgba(76, 132, 169, 0.45);
   filter: brightness(1.05);
-}
-.rcc-header-copy h1 {
-  margin: 0 0 6px;
-  color: #fff;
-  font-size: 28px;
-  font-weight: 700;
-}
-
-.rcc-header-copy p {
-  margin: 0;
-  color: rgba(255, 255, 255, 0.65);
-  font-size: 16px;
 }
 
 .rcc-summary-grid {
@@ -130,7 +146,7 @@ body {
 
 .rcc-card,
 .rcc-state-card {
-  background: #fff;
+  background: var(--surface, #fff);
   border: 2px solid var(--border);
   border-radius: 28px;
   padding: 28px;
@@ -210,7 +226,7 @@ body {
 }
 
 .rcc-mini-stat {
-  background: #eef3f3;
+  background: var(--mist, #eef3f3);
   border-radius: 20px;
   padding: 18px;
   text-align: center;
@@ -250,7 +266,7 @@ body {
 }
 
 .rcc-count-pill {
-  background: #eef3f0;
+  background: var(--mist-2, #eef3f0);
   color: #7e9ca1;
   border-radius: 999px;
   padding: 10px 18px;
@@ -266,7 +282,7 @@ body {
 .rcc-pet-row {
   width: 100%;
   border: 2px solid var(--border);
-  background: #fff;
+  background: var(--surface, #fff);
   border-radius: 24px;
   min-height: 92px;
   padding: 18px 24px;
@@ -357,22 +373,11 @@ body {
 }
 
 .rcc-pill--soft {
-  background: #dceceb;
+  background: var(--teal-soft, #dceceb);
   color: #197f6f;
 }
 
-.rcc-chevron-btn {
-  width: 54px;
-  height: 54px;
-  border-radius: 18px;
-  border: 2px solid #e5ddd3;
-  background: #fffdf9;
-  color: #213f44;
-  display: grid;
-  place-items: center;
-  font-size: 34px;
-  line-height: 1;
-}
+
 
 .rcc-state-card {
   color: #7d9ca1;
@@ -381,7 +386,7 @@ body {
 }
 
 .rcc-state-card--error {
-  background: #fdeae8;
+  background: var(--coral-pale, #fdeae8);
   border-color: #efc3bc;
   color: #8a3d31;
 }
@@ -405,21 +410,6 @@ body {
 @media (max-width: 720px) {
   .rcc-page {
     padding: 16px;
-  }
-
-  .rcc-header {
-    flex-direction: column;
-    align-items: flex-start;
-    padding: 22px;
-  }
-
-  .rcc-back-btn {
-    padding: 12px 18px;
-    font-size: 15px;
-  }
-
-  .rcc-header-copy h1 {
-    font-size: 24px;
   }
 
   .rcc-mini-stats {

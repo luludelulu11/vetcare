@@ -1,15 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import "./historialMascota.css";
+import PageHeader from "../components/PageHeader";
+import { PawPrint } from "lucide-react";
 import Swal from "sweetalert2";
-import { isDemoMode } from "../utils/demoMode";
-import {
-  demoClientes,
-  demoMascotas,
-  demoHistorialMascota,
-} from "../mock/demoData";
 
-const API_URL = "http://localhost:5000";
+const API_URL = import.meta.env.VITE_API_URL || "";
 
 const VISIT_TYPE_LABELS = {
   vac: "Vacuna",
@@ -73,40 +69,6 @@ export default function HistorialMascota() {
 
   useEffect(() => {
     const cargarHistorial = async () => {
-
-        if (isDemoMode) {
-  const mascota =
-    demoMascotas.find((m) => String(m.id) === String(mascotaId)) ||
-    demoMascotas[0];
-
-  const cliente =
-    demoClientes.find(
-      (c) =>
-        String(c.id) === String(mascota.clienteId) ||
-        String(c.id) === String(mascota.client_id)
-    ) || demoClientes[0];
-
-  setMascotaInfo(mascota);
-  setClienteInfo(cliente);
-  setConsultas(demoHistorialMascota);
-
-  setForm({
-    nombre: mascota.nombre || mascota.name || "",
-    raza: mascota.raza || mascota.breed || "",
-    edad: mascota.edad || mascota.age_years || "",
-    sexo:
-      mascota.sex === "MALE"
-        ? "Macho"
-        : mascota.sex === "FEMALE"
-        ? "Hembra"
-        : mascota.sexo || "",
-    peso: mascota.peso || mascota.weight_kg || "",
-    observaciones: mascota.observaciones || mascota.observations || "",
-  });
-
-  setLoading(false);
-  return;
-}
 
       try {
         setLoading(true);
@@ -424,21 +386,13 @@ export default function HistorialMascota() {
   return (
     <div className="hcd-page">
       <div className="hcd-container">
-        <header className="hcd-hero">
-          <button
-            type="button"
-            className="hcd-back-btn"
-            onClick={() => navigate(-1)}
-          >
-            <span className="hcd-back-arrow">←</span>
-            <span>volver</span>
-          </button>
-
-          <div className="hcd-hero-copy">
-            <h1>Historial de mascota</h1>
-            <p>Detalle clínico del paciente</p>
-          </div>
-        </header>
+        <PageHeader
+          icon={<PawPrint size={24} />}
+          title="Historial de mascota"
+          subtitle="Detalle clínico del paciente"
+          onBack={() => navigate(-1)}
+          backClassName="btn-back--s75"
+        />
 
         {loading ? (
           <div className="hcd-state-card">Loading clinical history...</div>
@@ -461,7 +415,7 @@ export default function HistorialMascota() {
                   <h3 className="hcd-card-label">Mascota</h3>
 
                   <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                    <button className="edit"
+                    <button className="pet-status-btn--success"
                       type="button"
                       onClick={() => setEditMode((prev) => !prev)}
                       style={{
@@ -476,7 +430,7 @@ export default function HistorialMascota() {
                       {editMode ? "Cancelar" : "Editar"}
                     </button>
 
-                    <button className="deac"
+                    <button className="pet-status-btn--danger"
                       type="button"
                       onClick={handleToggleMascota}
                       style={{
@@ -700,7 +654,7 @@ export default function HistorialMascota() {
 
                           <button
                             type="button"
-                            className="hcd-chevron-btn"
+                            className="chev-btn"
                             onClick={() => navigate(`/consulta/${consulta.id}`)}
                           >
                             ›

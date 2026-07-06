@@ -5,7 +5,7 @@
   --soft: #f8fbfb;
   --soft-2: #eef5f3;
   --card: #ffffff;
-  --hero: #1e5568;
+  --hero: #0f6e84;
   --hero-2: #235e6e;
   --bg: #f5f0e8;
   --green: #0f6e56;
@@ -16,6 +16,39 @@
   --red-soft: #fde8e3;
   --blue: #185fa5;
   --blue-soft: #dceeff;
+
+  /* Page tokens (formerly hardcoded) */
+  --purple-soft: #eee6fb;
+  --purple-border: #ccb7ee;
+  --purple: #6b48a0;
+  --track: #e8e0d4;
+  --soft-3: #f7fbfb;
+  --chip-hover: #f0faf8;
+  --divider: #e8f0f0;
+  --add-bg: #e8f7f4;
+  --add-bg-hover: #d3f0ea;
+  --cancel-hover: #ffe8e8;
+  --ink-hero: #1e5568;
+  --near-white: #fdfdfd;
+  --dp-border: #d7e4ea;
+  --dp-head: #f7fbfd;
+  --dp-hover: #eaf5fb;
+  --badge-sky-bg: #b8dffb;
+  --badge-sky-ink: #1565c0;
+  --badge-amber-bg: #fae4c0;
+  --badge-amber-ink: #ef6c00;
+  --badge-pink-bg: #fbcfdd;
+  --badge-pink-ink: #c2185b;
+  --badge-purple-bg: #e2ceff;
+  --badge-green-bg: #c8efcc;
+  --badge-green-ink: #2e7d32;
+  --badge-gray-bg: #ddd4d4;
+  --badge-gray-ink: #616161;
+  --badge-red-bg: #ffb2a4;
+  --badge-red-ink: #c62828;
+  --badge-lilac-bg: #f3e5f5;
+  --badge-lilac-ink: #8e24aa;
+  --badge-blue-bg: #dbf1ff;
 }
 
 *,
@@ -25,7 +58,7 @@
 }
 
 .wrap {
-  background: #fefaf4e9 !important;
+  background: var(--paper, #fefaf4e9) !important;
   min-height: 100vh;
   padding: 16px;
   display: flex;
@@ -51,23 +84,7 @@
   gap: 12px;
 }
 
-.back {
-  background: rgba(255, 255, 255, 0.12);
-  border: 0.5px solid rgba(255, 255, 255, 0.2);
-  color: rgba(255, 255, 255, 0.9);
-  border-radius: 15px;
-  padding: 4px 10px;
-  font-size: 16px;
-  cursor: pointer;
-  white-space: nowrap;
-  height: 40px;
-}
-
-.back:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 28px rgba(76, 132, 169, 0.45);
-  filter: brightness(1.05);
-}
+/* Back button: global .btn-back (styles/buttons.css) */
 .heroMid {
   flex: 1;
 }
@@ -77,6 +94,7 @@
   font-size: 19px;
   font-weight: 500;
   color: #fff;
+  font-family: "Playfair Display", serif;
 }
 
 .heroMid p {
@@ -111,7 +129,7 @@
   flex: 1;
   height: 3px;
   border-radius: 999px;
-  background: #e8e0d4;
+  background: var(--track, #e8e0d4);
   transition: background 0.3s;
 }
 
@@ -122,7 +140,7 @@
 .tabs {
   display: flex;
   gap: 2px;
-  background: #e8e0d4;
+  background: var(--track, #e8e0d4);
   border-radius: 10px;
   padding: 3px;
 }
@@ -146,13 +164,13 @@
 }
 
 .active {
-  background: #fff;
-  color: #1e5568;
+  background: var(--card, #fff);
+  color: var(--ink-hero, #1e5568);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
 .panel {
-  background: #fff;
+  background: var(--card, #fff);
   border: 2px solid var(--line);
   border-radius: 13px;
   padding: 22px;
@@ -297,7 +315,7 @@
 .tagInputRow input:focus,
 .patientSearchWrap > input:focus {
   border-color: #5db8ca;
-  background: #fff;
+  background: var(--card, #fff);
   box-shadow: 0 0 0 3px rgba(93, 184, 202, 0.1);
 }
 
@@ -311,7 +329,7 @@
   top: calc(100% + 6px);
   left: 0;
   right: 0;
-  background: white;
+  background: var(--card, white);
   border: 0.5px solid var(--line);
   border-radius: 10px;
   overflow: hidden;
@@ -330,14 +348,14 @@
   display: block;
   width: 100%;
   border: 0;
-  background: white;
+  background: var(--card, white);
   text-align: left;
   padding: 10px 12px;
   cursor: pointer;
 }
 
 .patientResultBtn:hover {
-  background: #f7fbfb;
+  background: var(--soft-3, #f7fbfb);
 }
 
 .patientResultName {
@@ -354,7 +372,7 @@
 
 .patientPreview {
   margin-top: 10px;
-  background: #f8fbfb;
+  background: var(--soft, #f8fbfb);
   border: 0.5px dashed var(--line);
   border-radius: 9px;
   padding: 10px 12px;
@@ -409,7 +427,7 @@
 
 .chip:hover {
   border-color: #9dd4d4;
-  background: #f0faf8;
+  background: var(--chip-hover, #f0faf8);
 }
 
 .statusOpen,
@@ -446,38 +464,38 @@
 }
 
 .typeVac {
-  background: #e1f5ee;
+  background: var(--green-soft, #e1f5ee);
   border-color: #9fd4c4;
-  color: #0f6e56;
+  color: var(--green, #0f6e56);
 }
 
 .typeGen {
-  background: #dceeff;
+  background: var(--blue-soft, #dceeff);
   border-color: #a8ccee;
-  color: #185fa5;
+  color: var(--blue, #185fa5);
 }
 
 .typeIll {
-  background: #fde8e3;
+  background: var(--red-soft, #fde8e3);
   border-color: #f0b8b0;
-  color: #712b13;
+  color: var(--red, #712b13);
 }
 
 .typeSur {
-  background: #eee6fb;
-  border-color: #ccb7ee;
-  color: #6b48a0;
+  background: var(--purple-soft, #eee6fb);
+  border-color: var(--purple-border, #ccb7ee);
+  color: var(--purple, #6b48a0);
 }
 
 .typeMed {
-  background: #fdf0d5;
+  background: var(--amber-soft, #fdf0d5);
   border-color: #f0c870;
   color: #633806;
 }
 
 .divider {
   height: 0.5px;
-  background: #e8f0f0;
+  background: var(--divider, #e8f0f0);
   margin: 14px 0;
 }
 
@@ -532,7 +550,7 @@
 }
 
 .tag {
-  background: #e1f5ee;
+  background: var(--green-soft, #e1f5ee);
   color: #0f6e56;
   border-radius: 999px;
   padding: 3px 9px;
@@ -563,7 +581,7 @@
   padding: 7px 12px;
   border-radius: 8px;
   border: 0.5px solid #5db8ca;
-  background: #e8f7f4;
+  background: var(--add-bg, #e8f7f4);
   color: #0f6e56;
   font-family: inherit;
   font-size: 11px;
@@ -574,13 +592,13 @@
 }
 
 .addBtn:hover {
-  background: #d3f0ea;
+  background: var(--add-bg-hover, #d3f0ea);
 }
 
 .dropZone {
   min-height: 110px;
   border: 0.5px dashed #b8d0d1;
-  background: #f8fbfb;
+  background: var(--soft, #f8fbfb);
   border-radius: 9px;
   display: grid;
   place-items: center;
@@ -620,7 +638,7 @@
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: #fff;
+  background: var(--card, #fff);
 }
 
 .fileInfo {
@@ -668,8 +686,8 @@
   padding: 11px 18px;
   border-radius: 10px;
   border: 0.5px solid var(--line);
-  background: #f3f6f7;
-  color: #305555;
+  background: var(--input-bg-soft, #f3f6f7);
+  color: var(--cancel-ink, #305555);
   font-family: inherit;
   font-size: 16px;
   cursor: pointer;
@@ -678,8 +696,9 @@
 
 .btnCancel:hover {
   transform: translateY(-1px);
-  background: #ffe8e8;
-  box-shadow: 0 8px 24px #fbe7dc;
+  background: var(--cancel-hover, #ffe8e8);
+  color: var(--cancel-hover-ink, #305555);
+  box-shadow: 0 8px 24px var(--cancel-glow, #fbe7dc);
   filter: brightness(1.01)
 }
 
@@ -693,7 +712,7 @@
 
 .btnOutline {
   border: 1px solid var(--line);
-  background: white;
+  background: var(--card, white);
   color: var(--text);
 }
 
@@ -701,6 +720,13 @@
   border: none;
   background: var(--hero);
   color: white;
+  transition: transform 0.15s, box-shadow 0.2s, filter 0.2s;
+}
+
+.btnPrimary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px var(--primary-glow, #9ad0dd80);
+  filter: brightness(1.05);
 }
 
 .errorText {
@@ -755,47 +781,47 @@
 }
 
 .typeGen {
-  background: #b8dffb;
-  color: #1565c0;
+  background: var(--badge-sky-bg, #b8dffb);
+  color: var(--badge-sky-ink, #1565c0);
 }
 
 .typeIll {
-  background: #fae4c0;
-  color: #ef6c00;
+  background: var(--badge-amber-bg, #fae4c0);
+  color: var(--badge-amber-ink, #ef6c00);
 }
 
 .typeSur {
-  background: #fbcfdd;
-  color: #c2185b;
+  background: var(--badge-pink-bg, #fbcfdd);
+  color: var(--badge-pink-ink, #c2185b);
 }
 
 .typeMed {
-  background: #e2ceff;
+  background: var(--badge-purple-bg, #e2ceff);
   color: #512da8;
 }
 
 .typeDen {
-  background: #c8efcc;
-  color: #2e7d32;
+  background: var(--badge-green-bg, #c8efcc);
+  color: var(--badge-green-ink, #2e7d32);
 }
 
 .typeRou {
-  background: #ddd4d4;
-  color: #616161;
+  background: var(--badge-gray-bg, #ddd4d4);
+  color: var(--badge-gray-ink, #616161);
 }
 
 .typeEme {
-  background: #ffb2a4;
-  color: #c62828;
+  background: var(--badge-red-bg, #ffb2a4);
+  color: var(--badge-red-ink, #c62828);
 }
 
 .typeEmb {
-  background: #f3e5f5;
-  color: #8e24aa;
+  background: var(--badge-lilac-bg, #f3e5f5);
+  color: var(--badge-lilac-ink, #8e24aa);
 }
 
 .typeDefault {
-  background: #dbf1ff;
+  background: var(--badge-blue-bg, #dbf1ff);
   color: #37474f;
 }
 .datePickerInput {
@@ -803,8 +829,8 @@
   min-height: 48px;
   padding: 0 14px;
   border-radius: 14px;
-  border: 1px solid #d7e4ea;
-  background: #fdfdfd;
+  border: 1px solid var(--dp-border, #d7e4ea);
+  background: var(--near-white, #fdfdfd);
   color: #1f2d3d;
   outline: none;
   font: inherit;
@@ -824,7 +850,7 @@
 }
 
 :global(.react-datepicker__header) {
-  background: #f7fbfd;
+  background: var(--dp-head, #f7fbfd);
   border-bottom: 1px solid #e2edf2;
 }
 
@@ -837,7 +863,7 @@
 
 :global(.react-datepicker__day:hover),
 :global(.react-datepicker__time-list-item:hover) {
-  background-color: #eaf5fb !important;
+  background-color: var(--dp-hover, #eaf5fb) !important;
   border-radius: 10px;
 }
 

@@ -51,10 +51,7 @@ div {
   align-items: center;
   justify-content: center;
   padding: 42px 16px;
-  background:
-    radial-gradient(ellipse at top left, rgba(75, 170, 200, 0.08) 0%, transparent 45%),
-    radial-gradient(ellipse at bottom right, rgba(232, 168, 66, 0.08) 0%, transparent 38%),
-    var(--creamita);
+  background: var(--bg, #fcf9f5);
   font-family: "DM Sans", sans-serif;
   color: var(--text-dark);
   scale: 0.9;
@@ -66,7 +63,7 @@ div {
   max-width: 700px;
   scale: 0.92;
   transform-origin: top center;
-  background: white;
+  background: var(--surface, white);
   border: 1px solid rgba(42, 112, 144, 0.08);
   border-radius: 30px;
   overflow: hidden;
@@ -161,7 +158,7 @@ div {
   align-items: center;
   width: 100%;
   height: 54px;
-  background: #f7fbfc;
+  background: var(--input-bg, #f7fbfc);
   border: 1px solid var(--border);
   border-radius: 18px;
   padding: 0 16px;
@@ -224,7 +221,7 @@ div {
   padding: 0 16px;
   border: 1px solid var(--border);
   border-radius: 18px;
-  background: #f7fbfc;
+  background: var(--input-bg, #f7fbfc);
   color: var(--text-dark);
   font-size: 15px;
   font-family: "DM Sans", sans-serif;
@@ -252,7 +249,7 @@ div {
 .ms-field select:focus,
 .ms-field textarea:focus {
   border-color: var(--teal-light);
-  background: #fff;
+  background: var(--surface, #fff);
   box-shadow: 0 0 0 4px rgba(75, 170, 200, 0.14);
 }
 
@@ -313,65 +310,7 @@ div {
   margin-top: 6px;
 }
 
-.ms-btn-primary {
-  width: 100%;
-  border: none;
-  border-radius: 18px;
-  padding: 16px 20px;
-  cursor: pointer;
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
-  color: #fff;
-  background: linear-gradient(135deg, var(--teal-lighti), var(--teal-midi)) !important;
-  box-shadow: 0 10px 24px rgba(42, 112, 144, 0.22);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
-  font-family: "DM Sans", sans-serif !important;
-}
-
-.ms-btn-primary:hover {
-  transform: translateY(-1px);
-  filter: brightness(1.03);
-  box-shadow: 0 14px 30px #bff5e7d0;
-}
-
-.ms-btn-primary:active {
-  transform: translateY(1px);
-}
-
-.ms-btn-secondary,
-.ms-link {
-  width: 100%;
-  border: 2px solid var(--border);
-  border-radius: 18px;
-  padding: 15px 20px;
-  background: #F4F8FB;
-  color: var(--teal-deep);
-  font-size: 15px;
-  font-weight: 700;
-  text-align: center;
-  text-decoration: none;
-  cursor: pointer;
-  transition: background 0.2s ease, transform 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: "DM Sans", sans-serif;
-}
-
-.ms-link:hover{
-  transform: translateY(-1px);
-    background: #fff;
-    box-shadow: 0 8px 24px rgba(90, 175, 232, 0.25);
-    filter: brightness(1.02);
-}
-
-.ms-btn-secondary:hover
- {
-  background: #EAF4FA;
-  transform: translateY(-1px);
-}
+/* Buttons: reusable .btn-primary-teal / .btn-secondary-light (styles/buttons.css) */
 
 .ms-col-2 {
   grid-column: span 2;
@@ -411,10 +350,7 @@ div {
 
   .ms-field input,
   .ms-field select,
-  .ms-field textarea,
-  .ms-btn-primary,
-  .ms-btn-secondary,
-  .ms-link {
+  .ms-field textarea {
     border-radius: 16px;
   }
 }
@@ -428,7 +364,7 @@ div {
   top: calc(100% + 8px);
   left: 0;
   width: 100%;
-  background: #fff;
+  background: var(--surface, #fff);
   border: 1px solid var(--border);
   border-radius: 18px;
   box-shadow: 0 12px 30px rgba(28, 43, 51, 0.12);
@@ -441,7 +377,7 @@ div {
 .ms-search-item {
   width: 100%;
   border: none;
-  background: #fff;
+  background: var(--surface, #fff);
   padding: 14px 16px;
   text-align: left;
   cursor: pointer;
@@ -453,7 +389,7 @@ div {
 
 .ms-search-item:hover,
 .ms-search-item.active {
-  background: #f4f8fb;
+  background: var(--input-bg-soft, #f4f8fb);
 }
 
 .ms-search-name {
