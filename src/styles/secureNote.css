@@ -1,0 +1,9 @@
+.secure-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 18px;
+  font-size: 13px;
+  color: var(--text-tertiary, #8fa8a6);
+}

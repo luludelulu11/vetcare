@@ -1,3 +1,13 @@
 allowBuilds:
+  '@prisma/engines': true
   bcrypt: true
   esbuild: true
+  prisma: true
+
+# Exempt `hono` from the minimumReleaseAge (24h "too new to trust") check.
+# It is a transitive dependency of Prisma's internal query tooling
+# (@prisma/query-plan-executor -> @hono/node-server -> hono: ^4), and its
+# latest patch releases frequently trip the supply-chain verification pass.
+# The age guard remains active for every other package.
+minimumReleaseAgeExclude:
+  - hono

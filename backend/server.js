@@ -1451,7 +1451,11 @@ app.post("/api/consultas", requireAuth, upload.array("adjuntos", 10), async (req
 
     if (Array.isArray(vacunas) && vacunas.length > 0) {
       for (const vacuna of vacunas) {
-        const valor = String(vacuna || "").trim();
+        // Accept either a plain string (legacy: just the vaccine name) or an
+        // object carrying the full carnet detail for that dose.
+        const item =
+          vacuna && typeof vacuna === "object" ? vacuna : { vacuna };
+        const valor = String(item.vacuna || "").trim();
         if (!valor) continue;
 
         await connection.execute(
@@ -1460,14 +1464,29 @@ app.post("/api/consultas", requireAuth, upload.array("adjuntos", 10), async (req
             id,
             consulta_id,
             vacuna,
+            fecha_aplicacion,
+            fecha_refuerzo,
+            lote,
+            laboratorio,
+            veterinario,
             lote_observaciones,
             deleted_at,
             created_at,
             updated_at
           )
-          VALUES (?, ?, ?, ?, NULL, NOW(), NOW())
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NOW(), NOW())
           `,
-          [crypto.randomUUID(), consultaId, valor, lote_vacuna || null]
+          [
+            crypto.randomUUID(),
+            consultaId,
+            valor,
+            item.fecha_aplicacion || null,
+            item.fecha_refuerzo || null,
+            item.lote || null,
+            item.laboratorio || null,
+            item.veterinario || null,
+            item.lote_observaciones || lote_vacuna || null,
+          ]
         );
       }
     }
@@ -1620,7 +1639,7 @@ app.get("/api/consultas/:id", requireAuth, async (req, res) => {
 
     const [vacunas] = await pool.execute(
       `
-      SELECT vacuna, lote_observaciones
+      SELECT vacuna, fecha_aplicacion, fecha_refuerzo, lote, laboratorio, veterinario, lote_observaciones
       FROM consulta_vacunas
       WHERE consulta_id = ?
         AND deleted_at IS NULL
@@ -1865,7 +1884,7 @@ app.get("/api/mascotas/:mascotaId/consultas", requireAuth, async (req, res) => {
 
       const [vacunas] = await pool.execute(
         `
-        SELECT vacuna, lote_observaciones
+        SELECT vacuna, fecha_aplicacion, fecha_refuerzo, lote, laboratorio, veterinario, lote_observaciones
         FROM consulta_vacunas
         WHERE consulta_id = ?
           AND deleted_at IS NULL
@@ -2236,6 +2255,259 @@ app.post("/api/consultas/:id/enviar-recordatorio", requireAuth, async (req, res)
     });
   } finally {
     if (connection) connection.release();
+  }
+});
+
+// =============================
+// CLIENT PORTAL (scoped to the logged-in client)
+// Requires a CLIENT token that carries `client_id`. Until client auth is
+// wired up these endpoints return 403; the frontend handles that gracefully.
+// =============================
+function requireClient(req, res, next) {
+  if (!req.user || req.user.role !== "CLIENT" || !req.user.client_id) {
+    return res.status(403).json({
+      message: "Acceso exclusivo para clientes del portal.",
+    });
+  }
+  next();
+}
+
+// The logged-in client's own pets
+app.get("/api/portal/mascotas", requireAuth, requireClient, async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `
+      SELECT
+        p.id,
+        p.name AS nombre,
+        p.species AS especie,
+        p.breed AS raza,
+        p.sex AS sexo,
+        p.age_years AS edad,
+        p.weight_kg AS peso,
+        p.weight_text,
+        p.observations AS observaciones
+      FROM pets p
+      WHERE p.client_id = ?
+        AND p.deleted_at IS NULL
+      ORDER BY p.name
+      `,
+      [req.user.client_id]
+    );
+
+    return res.json(rows);
+  } catch (error) {
+    console.error("Error cargando mascotas del portal:", error);
+    return res.status(500).json({ message: "Error interno del servidor." });
+  }
+});
+
+// Detail of one of the client's own pets, including the vaccination card
+app.get(
+  "/api/portal/mascotas/:id",
+  requireAuth,
+  requireClient,
+  async (req, res) => {
+    try {
+      const [pets] = await pool.execute(
+        `
+        SELECT
+          p.id,
+          p.name AS nombre,
+          p.species AS especie,
+          p.breed AS raza,
+          p.sex AS sexo,
+          p.age_years AS edad,
+          p.birth_date AS fecha_nacimiento,
+          p.weight_kg AS peso,
+          p.weight_text,
+          p.observations AS observaciones,
+          p.health_status AS estado_salud
+        FROM pets p
+        WHERE p.id = ?
+          AND p.client_id = ?
+          AND p.deleted_at IS NULL
+        `,
+        [req.params.id, req.user.client_id]
+      );
+
+      if (pets.length === 0) {
+        return res.status(404).json({ message: "Mascota no encontrada." });
+      }
+
+      // Vaccination card: every dose recorded across this pet's consultations
+      const [carnet] = await pool.execute(
+        `
+        SELECT
+          cv.vacuna,
+          cv.fecha_aplicacion,
+          cv.fecha_refuerzo,
+          cv.lote,
+          cv.laboratorio,
+          cv.veterinario,
+          cv.lote_observaciones,
+          c.fecha AS fecha_consulta
+        FROM consulta_vacunas cv
+        JOIN consultas c ON c.id = cv.consulta_id
+        WHERE c.pet_id = ?
+          AND c.client_id = ?
+          AND cv.deleted_at IS NULL
+          AND c.deleted_at IS NULL
+        ORDER BY COALESCE(cv.fecha_aplicacion, c.fecha) DESC
+        `,
+        [req.params.id, req.user.client_id]
+      );
+
+      return res.json({ ...pets[0], carnet });
+    } catch (error) {
+      console.error("Error cargando mascota del portal:", error);
+      return res.status(500).json({ message: "Error interno del servidor." });
+    }
+  }
+);
+
+// Full clinical history for a pet (pet's consultations with their detail).
+// Shared shape with the staff endpoint /api/mascotas/:id/consultas.
+async function fetchConsultasByPet(petId) {
+  const [consultas] = await pool.execute(
+    `
+    SELECT
+      c.id,
+      c.fecha AS visit_at,
+      c.motivo AS reason,
+      c.diagnostico AS diagnosis,
+      c.observaciones AS notes,
+      c.estado,
+      c.gravedad,
+      c.proxima_cita,
+      c.motivo_seguimiento,
+      c.peso,
+      c.temperatura,
+      c.frecuencia_cardiaca,
+      c.frecuencia_respiratoria,
+      c.presion_arterial,
+      c.saturacion_oxigeno,
+      d.full_name AS doctor
+    FROM consultas c
+    LEFT JOIN doctors d ON d.id = c.doctor_id
+    WHERE c.pet_id = ?
+      AND c.deleted_at IS NULL
+    ORDER BY c.fecha DESC, c.created_at DESC
+    `,
+    [petId]
+  );
+
+  const resultado = [];
+
+  for (const consulta of consultas) {
+    const [tipos] = await pool.execute(
+      `
+      SELECT tc.id, tc.codigo, tc.nombre
+      FROM consulta_tipos ct
+      INNER JOIN tipos_consulta tc ON tc.id = ct.tipo_consulta_id
+      WHERE ct.consulta_id = ?
+        AND ct.deleted_at IS NULL
+        AND tc.deleted_at IS NULL
+      ORDER BY tc.nombre ASC
+      `,
+      [consulta.id]
+    );
+
+    const [medicaciones] = await pool.execute(
+      `
+      SELECT medicamento, indicaciones
+      FROM consulta_medicaciones
+      WHERE consulta_id = ? AND deleted_at IS NULL
+      ORDER BY created_at ASC
+      `,
+      [consulta.id]
+    );
+
+    const [analisis] = await pool.execute(
+      `
+      SELECT analisis, resultado_observacion
+      FROM consulta_analisis
+      WHERE consulta_id = ? AND deleted_at IS NULL
+      ORDER BY created_at ASC
+      `,
+      [consulta.id]
+    );
+
+    const [vacunas] = await pool.execute(
+      `
+      SELECT vacuna, fecha_aplicacion, fecha_refuerzo, lote, laboratorio, veterinario, lote_observaciones
+      FROM consulta_vacunas
+      WHERE consulta_id = ? AND deleted_at IS NULL
+      ORDER BY created_at ASC
+      `,
+      [consulta.id]
+    );
+
+    resultado.push({
+      ...consulta,
+      tipos_consulta: tipos.map((t) => t.codigo),
+      tipos_consulta_detalle: tipos,
+      treatment:
+        medicaciones.length > 0
+          ? medicaciones.map((m) => m.medicamento).join(", ")
+          : null,
+      medicaciones,
+      analisis,
+      vacunas,
+    });
+  }
+
+  return resultado;
+}
+
+// The logged-in client's pet clinical history (ownership-checked)
+app.get(
+  "/api/portal/mascotas/:id/consultas",
+  requireAuth,
+  requireClient,
+  async (req, res) => {
+    try {
+      const [owned] = await pool.execute(
+        `SELECT id FROM pets WHERE id = ? AND client_id = ? AND deleted_at IS NULL`,
+        [req.params.id, req.user.client_id]
+      );
+      if (owned.length === 0) {
+        return res.status(404).json({ message: "Mascota no encontrada." });
+      }
+
+      const consultas = await fetchConsultasByPet(req.params.id);
+      return res.json(consultas);
+    } catch (error) {
+      console.error("Error cargando historial del portal:", error);
+      return res.status(500).json({ message: "Error interno del servidor." });
+    }
+  }
+);
+
+// The client's own profile
+app.get("/api/portal/perfil", requireAuth, requireClient, async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `
+      SELECT
+        id, first_name, last_name, email,
+        phone_primary, phone_secondary,
+        address_line1, address_line2, city, province_state
+      FROM clients
+      WHERE id = ?
+        AND deleted_at IS NULL
+      `,
+      [req.user.client_id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "Perfil no encontrado." });
+    }
+
+    return res.json(rows[0]);
+  } catch (error) {
+    console.error("Error cargando perfil del portal:", error);
+    return res.status(500).json({ message: "Error interno del servidor." });
   }
 });
 

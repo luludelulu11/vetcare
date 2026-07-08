@@ -1,0 +1,225 @@
+/* Virtual vaccination card — inherits the portal brand tokens (defined on .portal). */
+
+.vcard {
+  background: var(--surface);
+  border: 1px solid var(--border-default);
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+}
+
+/* Branded header band */
+.vcard__band {
+  background: linear-gradient(135deg, var(--brand) 0%, var(--brand-mid) 100%);
+  color: #fff;
+  padding: 18px 20px 20px;
+}
+
+.vcard__brand {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+  font-size: 14px;
+  opacity: 0.95;
+}
+
+.vcard__title {
+  font-family: "Playfair Display", serif;
+  font-size: 24px;
+  font-weight: 600;
+  margin: 8px 0 0;
+}
+
+/* Pet identity row */
+.vcard__identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+  border-bottom: 1px dashed var(--border-default);
+}
+
+.vcard__avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: var(--cream-tint);
+  color: var(--brand);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.vcard__id-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.vcard__id-text h2 {
+  font-family: "Playfair Display", serif;
+  font-size: 22px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.vcard__id-text p {
+  margin: 2px 0 0;
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+
+.vcard__overall {
+  align-self: flex-start;
+}
+
+/* Dose table */
+.vcard__table {
+  padding: 6px 20px 4px;
+}
+
+.vcard__thead,
+.vcard__row {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1fr 0.9fr;
+  gap: 10px;
+  align-items: center;
+}
+
+.vcard__thead {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  padding: 12px 0 8px;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.vcard__row {
+  padding: 13px 0;
+  border-bottom: 1px solid var(--border-default);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.vcard__row:last-child {
+  border-bottom: none;
+}
+
+.vcard__vac {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.vcard__vac strong {
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.vcard__vac em {
+  font-style: normal;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.vcard__empty {
+  text-align: center;
+  color: var(--text-tertiary);
+  padding: 36px 20px;
+}
+
+.vcard__empty p {
+  margin: 10px 0 0;
+  font-size: 14px;
+}
+
+.vcard__footer {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 16px 20px 20px;
+  background: var(--cream-tint);
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+/* Download / print button */
+.vcard__download {
+  width: 100%;
+  margin-top: 16px;
+  padding: 13px;
+  border: none;
+  border-radius: 12px;
+  background: var(--brand);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: filter 0.15s ease;
+}
+
+.vcard__download:hover {
+  filter: brightness(1.05);
+}
+
+/* ---------- Print: isolate the card for clean PDF export ---------- */
+@media print {
+  .no-print,
+  .portal__tabbar {
+    display: none !important;
+  }
+
+  .portal,
+  .portal__content {
+    max-width: none !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  .vcard {
+    border: 1px solid #d5d5d5;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .vcard__band {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .badge {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Responsive stacking off for print */
+  .vcard__thead,
+  .vcard__row {
+    grid-template-columns: 1.6fr 1fr 1fr 0.9fr !important;
+  }
+}
+
+/* ---------- Small screens: stack the table into labeled rows ---------- */
+@media (max-width: 440px) {
+  .vcard__thead {
+    display: none;
+  }
+
+  .vcard__row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .vcard__row > span[data-label]::before {
+    content: attr(data-label) ": ";
+    color: var(--text-tertiary);
+    font-weight: 600;
+  }
+}

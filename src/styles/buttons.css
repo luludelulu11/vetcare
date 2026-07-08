@@ -1,0 +1,188 @@
+/* ─── Primary teal button (Guardar / submit — from the login) ── */
+.btn-primary-teal {
+  width: 100%;
+  padding: 15px;
+  background: linear-gradient(135deg, var(--teal-deepa, #266582) 30%, #098eae 90%);
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.2s, filter 0.2s;
+  box-shadow: 0 8px 24px rgba(26, 74, 90, 0.22);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-primary-teal::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), transparent);
+  pointer-events: none;
+}
+
+.btn-primary-teal:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 28px rgba(90, 232, 211, 0.45);
+  filter: brightness(1.05);
+}
+
+.btn-primary-teal:active {
+  transform: translateY(1px);
+}
+
+.btn-primary-teal:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+
+/* ─── Secondary light button (Volver al menú / links) ── */
+.btn-secondary-light {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 15px;
+  border-radius: 12px;
+  border: 1.5px solid var(--border-warm, #e7e0d7);
+  background: var(--input-bg-soft, #f3f6f7);
+  color: var(--btn-secondary-ink, rgb(3, 72, 104));
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.2s, background 0.2s, filter 0.2s;
+}
+
+.btn-secondary-light:hover {
+  transform: translateY(-1px);
+  background: var(--surface, #fff);
+  box-shadow: 0 8px 24px rgba(90, 175, 232, 0.25);
+  filter: brightness(1.02);
+}
+
+.btn-secondary-light:active {
+  transform: translateY(1px);
+}
+
+/* ─── Reusable back button (for FormHeader / gradient headers) ── */
+.btn-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  justify-self: start;
+  gap: 0.72em;
+  border: 0.15em solid var(--brand-accent-soft);
+  background: transparent;
+  color: var(--text-inverse, #ffffff);
+  border-radius: 1.3em;
+  padding: 0.72em 1.3em;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+
+/* Counter-scale variants: compensate pages that shrink their content
+   with `scale`, so the button looks the same size everywhere */
+.btn-back--s65 { font-size: 21.5px; } /* page scale ≈ 0.65 (Registro) */
+.btn-back--s75 { font-size: 18.7px; } /* page scale 0.75 */
+.btn-back--s80 { font-size: 17.5px; } /* page scale 0.8 */
+.btn-back--s90 { font-size: 15.5px; } /* page scale 0.9 */
+
+.btn-back:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 28px rgba(90, 175, 232, 0.45);
+  filter: brightness(1.2);
+}
+
+.btn-back:active {
+  transform: translateY(1px);
+}
+
+/* Variant: pinned to the top-right corner of a relative header */
+.btn-back--corner {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  z-index: 10;
+}
+
+.chev-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-mid);
+  font-size: 40px;
+  line-height: 1;
+  border: 2px solid transparent;
+  border-radius: 16px;
+  width: 40px;
+  background: color-mix(in srgb, var(--brand-dark) 12%, transparent);
+}
+
+.chev-btn:hover {
+  background: var(--);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 28px var(--teal-tint);
+  border: 2px solid var(--nav-item-hover-bg);
+}
+
+.pet-status-btn {
+  border: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.pet-status-btn:hover {
+  transform: translateY(-1px);
+}
+
+.pet-status-btn:active {
+  transform: scale(0.97);
+}
+
+.pet-status-btn--success {
+  background: var(--success-bg);
+  color: var(--success-text);
+}
+
+.pet-status-btn--success:hover {
+  filter: brightness(0.96);
+  box-shadow: 0 6px 16px rgba(18, 123, 103, 0.2);
+  transform: translateY(-1px)
+}
+
+.pet-status-btn--danger {
+  background: var(--danger-bg);
+  color: var(--danger-text);
+}
+
+.pet-status-btn--danger:hover {
+  filter: brightness(0.96);
+  box-shadow: 0 6px 16px rgba(138, 61, 49, 0.2);
+  transform: translateY(-1px)
+}
+
+.btn-secundary{
+transform: translateY(-1px);
+  background: var(--surface);
+  box-shadow: 0 6px 18px var(--nav-item-hover-bg);
+  filter: brightness(1.02);
+}

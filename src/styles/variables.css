@@ -1,0 +1,265 @@
+:root {
+  /* Brand */
+  --brand: #0f6e84;
+  --brand-dark: #266582;
+  --brand-mid: #39a8c7;
+  --brand-accent-soft: #72c4cbdd;
+  --teal-tint: #add4e7d3;
+  --teal: #0f6e84;
+  --teal-deepa: #266582;
+  --hh: #266582;
+  --header-gradient: linear-gradient(135deg, var(--brand-dark), var(--brand-mid));
+
+  /* Surfaces */
+  --bg: #fcf9f5;
+  --surface: #ffffff;
+  --surface-glass: #fdf8f2d9;
+  --cream-tint: #fff6eadd;
+  --cremita: #fff6eadd;
+  --warm-white: #fff7ed;
+  --card-bg: #ffffff;
+  --white-surface: #ffffff;
+  --glass-card: #ffffffb8;
+  --input-bg: #f7fbfc;
+  --input-bg-soft: #f3f6f7;
+
+  /* Text */
+  --text-primary: #183a4a;
+  --text-secondary: #285158;
+  --text-tertiary: #8fa8a6;
+  --text-dark: #1c2b33;
+  --text-mid: #4a6070;
+  --text-light: #8ba3b0;
+  --text-soft: #86a4a7;
+  --text-inverse: #ffffff;
+  --text-inverse-muted: #ffffffc2;
+
+  /* Borders */
+  --border-default: #e2eeec;
+  --border-warm: #e7e0d7;
+  --solid-gray: #7f8c8f;
+
+  /* Accents */
+  --coral: #e76f51;
+  --blue: #d8f0fe;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 4px rgba(42, 157, 143, 0.08);
+  --shadow-md: 0 4px 20px rgba(42, 157, 143, 0.13);
+  --shadow-glass: 0 14px 36px rgba(31, 101, 122, 0.12);
+  --shadow-header: 0 14px 36px rgba(57, 57, 57, 0.12);
+  --shadow-hover-brand: #2a9d8066;
+  --shadow-hover-logout: #e8685a51;
+
+  /* Hover states */
+  --hover-bg-icon: #96d5dbbc;
+  --nav-item-hover-bg: #b5dff6;
+  --icon-bg-inverse: #ffffff29;
+
+  /* Logout accent */
+  --logout-bg: #fff5f2;
+  --logout-hover-bg: #ed7c566e;
+  --logout-border: #fcd5c8;
+
+  /* Overlay */
+  --overlay-bg: #1a2e2b73;
+
+  /* Layout */
+  --sidebar-w: 220px;
+  --radius: 14px;
+
+  --success-bg: #d1fae5;
+  --success-text: #065f46;
+  --danger-bg: #fee2e2;
+  --danger-text: #991b1b;
+
+  /* Extra semantic tokens (exact current values) */
+  --ink: black;
+  --btn-secondary-ink: rgb(3, 72, 104);
+  --icon-muted: #7ea0a5;
+  --label-soft: #7f9ea1;
+  --teal-mid: #2a939d;
+  --teal-pale: #d6eef5;
+  --tint-ink: #0c4854;
+  --tint-sub: #266582;
+  --tint-hover: #ffffff8f;
+  --paper: #fefaf4e9;
+  --coral-pale: #fdeae8;
+  --tip-ink: #1f6b7a;
+  --chip-ink: #0f6e84;
+  --alert-chip-bg: #fcd5c8;
+  --alert-chip-ink: #0f6e84;
+
+  /* Ink scale (formerly hardcoded dark texts) */
+  --ink-deep: #064761;
+  --ink-strong: #111827;
+  --ink-navy: #0f172a;
+  --ink-slate: #1f2937;
+  --ink-slate-mid: #334155;
+  --muted-slate: #667085;
+  --ink-teal-gray: #527274;
+
+  /* Neutral / status surfaces */
+  --neutral-btn-bg: #e5e7eb;
+  --field-border: #cfd8dc;
+  --mist: #eef3f3;
+  --mist-2: #eef3f0;
+  --soft-mint: #eef5f1;
+  --pill-open-bg: #dff3ea;
+  --pill-open-ink: #0f8a5f;
+  --pill-moderate-bg: #f8e9c9;
+  --pill-moderate-ink: #8a5a00;
+  --danger-bg-soft: #fef2f2;
+  --danger-border: #fecaca;
+  --success-bg-soft: #ecfdf5;
+  --success-border: #a7f3d0;
+  --danger-btn: #fa7f87;
+  --danger-btn-hover: #f96a74;
+  --rg-chevron-hover: #d8f7feea;
+  --cancel-ink: #305555;
+  --cancel-hover-ink: #305555;
+  --cancel-glow: #fbe7dc;
+  --primary-glow: #9ad0dd80;
+}
+
+/* ─── Dark mode ─────────────────────────────────────────────
+   Toggled from the Menu (sets data-theme="dark" on <html>).
+   :root[data-theme="dark"] outranks every per-page :root block,
+   so the same variable names flip app-wide. */
+:root[data-theme="dark"] {
+  /* Surfaces */
+  --bg: #0f181c;
+  --primary-bg: #0f181c;
+  --page-bg: #0f181c;
+  --surface: #17252c;
+  --al-surface: #17252c;
+  --surface-glass: #14222ad9;
+  --tb-bg: #14222ad9;
+  --cream-tint: #1a282fdd;
+  --cremita: #1a282fdd;
+  --warm-white: #1a282f;
+  --card: #17252c;
+  --card-bg: #17252c;
+  --white-surface: #17252c;
+  --glass-card: #17252cb8;
+  --input-bg: #101d24;
+  --input-bg-soft: #101d24;
+  --srch-input: #101d24;
+  --soft: #131f26;
+  --soft-2: #16242b;
+  --stat-card: #1d323b;
+
+  /* Text */
+  --text-primary: #e8f1f2;
+  --text-secondary: #c3d5d7;
+  --text-tertiary: #7f979e;
+  --text-dark: #e8f1f2;
+  --text-mid: #a7bcc4;
+  --text-light: #7f979e;
+  --text-soft: #7f979e;
+  --text: #e8f1f2;
+  --muted: #a7bcc4;
+  --label: #8fa8b0;
+  --placeholder: #5f7780;
+
+  /* Borders */
+  --border-default: #263a43;
+  --border-warm: #263a43;
+  --border: #263a43;
+  --border-soft: #ffffff14;
+  --line: #263a43;
+  --solid-gray: #5d7076;
+
+  /* Tints (same hue, darkened) */
+  --teal-tint: #27596ed3;
+  --teal-lighta: #27596ed3;
+  --tip-ink: #bfe3ee;
+  --chip-ink: #8fd7e6;
+  --alert-chip-bg: #7a4636;
+  --alert-chip-ink: #ffd9c9;
+  --teal-pale: #163643;
+  --teal-pali: #163643dd;
+  --teal-soft: #163a38;
+  --hover-bg-icon: #235662bc;
+  --nav-item-hover-bg: #1e4a63;
+  --blue: #16303f;
+  --l-blue: #16303f;
+  --blue-bg: #16303f;
+  --blue-soft: #16303f;
+  --blue-text: #7db3ef;
+  --l-yellow: #33290f;
+  --amber-pale: #322a12;
+  --gold-bg: #322a12;
+  --gold-text: #e3b45e;
+  --l-green: #14302c;
+  --mint-bg: #14302c;
+  --mint-text: #6fd4b8;
+  --coral-pale: #33201a;
+  --surgery-bg: #33201a;
+  --surgery-text: #e0906b;
+  --muted-pill-bg: #223035;
+  --muted-pill-text: #93a6ab;
+
+  /* Status */
+  --success-bg: #0e3a2a;
+  --success-text: #7fe0b8;
+  --danger-bg: #3d1414;
+  --danger-text: #f3a0a0;
+
+  /* Logout accent */
+  --logout-bg: #2a1a16;
+  --logout-border: #5b2c20;
+
+  /* Extra semantic tokens */
+  --ink: #e8f1f2;
+  --btn-secondary-ink: #8fc6e6;
+  --label-soft: #8fa8b0;
+  --tint-ink: #cfe9f2;
+  --tint-sub: #8fc0d4;
+  --tint-hover: #ffffff1f;
+  --paper: #14222ae9;
+
+  /* Ink scale */
+  --ink-deep: #8fc6e6;
+  --ink-strong: #e8f1f2;
+  --ink-navy: #e8f1f2;
+  --ink-slate: #dbe6e9;
+  --ink-slate-mid: #b6c8ce;
+  --muted-slate: #93a2b5;
+  --ink-teal-gray: #a9c3c5;
+  --ink-hero: #9fd4e2;
+
+  /* Neutral / status surfaces */
+  --neutral-btn-bg: #2a3a42;
+  --field-border: #263a43;
+  --mist: #1b2b31;
+  --mist-2: #1b2b31;
+  --soft-mint: #17282a;
+  --soft-3: #131f26;
+  --track: #26343a;
+  --divider: #24363e;
+  --cancel-hover: #7a3c3c;
+  --cancel-ink: #c3d5d7;
+  --cancel-hover-ink: #ffd9d9;
+  --cancel-glow: #e76f5133;
+  --primary-glow: #4ba5c840;
+  --near-white: #101d24;
+  --hc-page-bg: #0f181c;
+  --rg-chevron-hover: #1d4152d3;
+  --pill-open-bg: #2c705f;
+  --pill-open-ink: #c8f7e3;
+  --pill-moderate-bg: #6e5619;
+  --pill-moderate-ink: #ffe3a1;
+  --danger-bg-soft: #3d1414;
+  --danger-border: #6b2424;
+  --success-bg-soft: #0e3a2a;
+  --success-border: #1d6b4e;
+
+  /* Shadows & overlay */
+  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.45);
+  --shadow-glass: 0 14px 36px rgba(0, 0, 0, 0.4);
+  --shadow-header: 0 14px 36px rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 10px 30px rgba(0, 0, 0, 0.45);
+  --overlay-bg: #00000080;
+}

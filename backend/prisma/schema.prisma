@@ -181,6 +181,11 @@ model Vaccination {
   id                String    @id @default(uuid())
   consultationId     String    @map("consulta_id")
   vacuna             String
+  fechaAplicacion    DateTime? @map("fecha_aplicacion") @db.Date
+  fechaRefuerzo      DateTime? @map("fecha_refuerzo") @db.Date
+  lote               String?
+  laboratorio        String?
+  veterinario        String?
   loteObservaciones  String?   @map("lote_observaciones")
   deletedAt          DateTime? @map("deleted_at")
   createdAt          DateTime  @default(now()) @map("created_at")

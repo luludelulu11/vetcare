@@ -1,0 +1,229 @@
+/* Shared printable clinical-history document. Neutral tokens so it looks
+   right on both the staff (desktop) and client (mobile) contexts, and prints
+   cleanly to PDF. */
+.hc-doc {
+  --hc-brand: #0f6e84;
+  --hc-ink: #183a4a;
+  --hc-muted: #6b8188;
+  --hc-line: #dbe7e6;
+  --hc-tint: #f3f8f8;
+
+  background: #fff;
+  color: var(--hc-ink);
+  font-family: "DM Sans", system-ui, sans-serif;
+  border: 1px solid var(--hc-line);
+  border-radius: 14px;
+  padding: 26px;
+  max-width: 820px;
+  margin: 0 auto;
+  line-height: 1.5;
+}
+
+/* Invisible on screen, but still printable (staff variant). */
+.hc-doc--print-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  padding: 0;
+  border: 0;
+  margin: -1px;
+}
+
+.hc-header {
+  border-bottom: 2px solid var(--hc-brand);
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+
+.hc-brand {
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--hc-brand);
+}
+
+.hc-doc-title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--hc-muted);
+}
+
+.hc-emitted {
+  font-size: 12px;
+  color: var(--hc-muted);
+  margin-top: 2px;
+}
+
+.hc-identity {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.hc-pet-name {
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 24px;
+  margin: 0;
+}
+
+.hc-pet-meta {
+  margin: 2px 0 0;
+  color: var(--hc-muted);
+  font-size: 14px;
+}
+
+.hc-owner {
+  margin: 0;
+  min-width: 220px;
+}
+
+.hc-field {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+  padding: 1px 0;
+}
+
+.hc-field dt {
+  color: var(--hc-muted);
+  min-width: 92px;
+  margin: 0;
+}
+
+.hc-field dd {
+  margin: 0;
+  font-weight: 500;
+}
+
+.hc-observations {
+  background: var(--hc-tint);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  margin: 0 0 18px;
+}
+
+.hc-section-title {
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 18px;
+  border-bottom: 1px solid var(--hc-line);
+  padding-bottom: 6px;
+  margin: 18px 0 12px;
+}
+
+.hc-consulta {
+  border: 1px solid var(--hc-line);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.hc-consulta-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.hc-consulta-date {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.hc-consulta-type {
+  background: var(--hc-brand);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 999px;
+}
+
+.hc-consulta-doc {
+  color: var(--hc-muted);
+  font-size: 12px;
+  margin-left: auto;
+}
+
+.hc-fields {
+  margin: 0 0 6px;
+}
+
+.hc-sub {
+  margin-top: 8px;
+}
+
+.hc-sub h4 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--hc-muted);
+  margin: 0 0 4px;
+}
+
+.hc-sub ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+
+.hc-sub li {
+  margin: 2px 0;
+}
+
+.hc-empty {
+  color: var(--hc-muted);
+  font-size: 14px;
+}
+
+.hc-footer {
+  margin-top: 18px;
+  padding-top: 10px;
+  border-top: 1px solid var(--hc-line);
+  color: var(--hc-muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+/* ---------- Print isolation ---------- */
+@media print {
+  body {
+    background: #fff !important;
+  }
+  body * {
+    visibility: hidden !important;
+  }
+  .hc-doc,
+  .hc-doc * {
+    visibility: visible !important;
+  }
+  .hc-doc {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-width: none;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    margin: 0;
+    /* undo the screen-hiding clip when printing the staff variant */
+    height: auto;
+    overflow: visible;
+    clip: auto;
+  }
+  .hc-consulta-type {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

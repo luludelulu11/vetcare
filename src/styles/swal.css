@@ -1,0 +1,37 @@
+/* SweetAlert2 dark mode — only applies when data-theme="dark".
+   Light mode keeps the library defaults. */
+
+[data-theme="dark"] .swal2-popup {
+  background: var(--surface, #17252c);
+  color: var(--text-primary, #e8f1f2);
+}
+
+[data-theme="dark"] .swal2-title {
+  color: var(--text-primary, #e8f1f2);
+}
+
+[data-theme="dark"] .swal2-html-container {
+  color: var(--text-secondary, #c3d5d7);
+}
+
+[data-theme="dark"] .swal2-footer {
+  color: var(--text-tertiary, #7f979e);
+  border-top-color: var(--border-default, #263a43);
+}
+
+[data-theme="dark"] .swal2-timer-progress-bar {
+  background: var(--teal-tint, #27596ed3);
+}
+
+[data-theme="dark"] .swal2-input,
+[data-theme="dark"] .swal2-textarea,
+[data-theme="dark"] .swal2-select {
+  background: var(--input-bg, #101d24);
+  color: var(--text-primary, #e8f1f2);
+  border-color: var(--border-default, #263a43);
+}
+
+[data-theme="dark"] .swal2-validation-message {
+  background: var(--danger-bg, #3d1414);
+  color: var(--danger-text, #f3a0a0);
+}

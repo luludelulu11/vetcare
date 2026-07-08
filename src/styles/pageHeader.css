@@ -1,0 +1,144 @@
+/* ─── PageHeader: header for secondary/detail pages ───────────
+   Variants: --glass (B), --tint (C), --bare (D)              */
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+  border-radius: 24px;
+  padding: 20px 28px;
+}
+
+.page-header__left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* Title + subtitle grouped: edit them together here */
+.page-header__heading {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text-primary, #1c2b33);
+}
+
+.page-header__heading h1 {
+  margin: 0;
+  font-family: "Playfair Display", serif;
+  font-size: 28px;
+  line-height: 1.1;
+  color: inherit;
+}
+
+.page-header__heading p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-tertiary, #8ba3b0);
+}
+
+/* Icon chip: same language as the menu action cards */
+.page-header__icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: var(--teal-tint, #add4e7d3);
+  color: var(--chip-ink, #0f6e84);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.page-header--hero .page-header__icon {
+  background: var(--icon-bg-inverse, #ffffff29);
+  color: var(--text-inverse, #ffffff);
+}
+
+.page-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* ─── A: teal hero (gradient, white text) ─────────────────── */
+.page-header--hero {
+  background: var(--header-gradient, linear-gradient(135deg, #266582, #39a8c7));
+  border-radius: 28px;
+  padding: 28px 32px;
+}
+
+.page-header--hero .page-header__heading {
+  color: var(--text-inverse, #ffffff);
+}
+
+.page-header--hero .page-header__heading p {
+  color: var(--text-inverse-muted, #ffffffc2);
+}
+
+/* ─── B: glass card (translucent white + soft 3D shadow) ── */
+.page-header--glass {
+  background: var(--glass-card, #ffffffb8);
+  box-shadow: var(--shadow-glass, 0 14px 36px rgba(31, 101, 122, 0.12));
+}
+
+/* ─── C: soft teal tint ───────────────────────────────────── */
+.page-header--tint {
+  background: var(--teal-pale, #d6eef5);
+}
+
+.page-header--tint .page-header__heading {
+  color: var(--tint-ink, #0c4854);
+}
+
+.page-header--tint .page-header__heading p {
+  color: var(--tint-sub, #266582);
+}
+
+/* ─── D: bare, teal accent bar only ──────────────────────── */
+.page-header--bare {
+  background: transparent;
+  border-radius: 0;
+  padding: 12px 6px;
+}
+
+.page-header--bare .page-header__heading {
+  border-left: 4px solid var(--teal-mid, #2a939d);
+  border-radius: 0;
+  padding-left: 12px;
+}
+
+/* Back button colors on light variants (base .btn-back is
+   white-on-dark for gradient headers) */
+.page-header--glass .btn-back,
+.page-header--bare .btn-back {
+  color: var(--text-secondary, #4a6070);
+  border-color: var(--solid-gray, #7f8c8f);
+}
+
+.page-header--glass .btn-back:hover,
+.page-header--bare .btn-back:hover {
+  background: var(--teal-tint, #add4e7d3);
+  color: var(--text-primary, #1c2b33);
+}
+
+.page-header--tint .btn-back {
+  color: var(--tint-ink, #0c4854);
+  border-color: var(--teal-mid, #2a939d);
+}
+
+.page-header--tint .btn-back:hover {
+  background: var(--tint-hover, #ffffff8f);
+}
+
+@media (max-width: 768px) {
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 18px 20px;
+  }
+}

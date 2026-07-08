@@ -3,12 +3,15 @@ import { useNavigate, Link } from "react-router-dom";
 import "./login.css";
 import { User, Lock, Eye, EyeOff } from "lucide-react";
 import SecureNote from "../components/SecureNote";
+import { useAuth } from "../auth/AuthContext";
+import { roleHome } from "../auth/RequireRole";
 
 
 
 export default function Login() {
-  
+
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [usuario, setUsuario] = useState("");
   const [contrasena, setContrasena] = useState("");
   const [showPass, setShowPass] = useState(false);
@@ -50,10 +53,9 @@ export default function Login() {
         return;
       }
 
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(data.user));
+      login(data.user, data.token);
 
-      navigate("/menu");
+      navigate(roleHome(data.user?.role), { replace: true });
     } catch (err) {
       console.error(err);
       setError("No se pudo conectar al servidor.");

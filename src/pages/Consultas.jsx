@@ -159,6 +159,129 @@ function TagInput({ tags, onAdd, onRemove, placeholder }) {
   );
 }
 
+const EMPTY_VACCINE = {
+  vacuna: "",
+  fecha_aplicacion: "",
+  fecha_refuerzo: "",
+  lote: "",
+  laboratorio: "",
+  veterinario: "",
+};
+
+function VaccineEditor({ doses, onAdd, onRemove }) {
+  const [draft, setDraft] = useState(EMPTY_VACCINE);
+
+  const set = (key) => (e) =>
+    setDraft((prev) => ({ ...prev, [key]: e.target.value }));
+
+  const handleAdd = () => {
+    const vacuna = draft.vacuna.trim();
+    if (!vacuna) return;
+    onAdd({
+      vacuna,
+      fecha_aplicacion: draft.fecha_aplicacion || null,
+      fecha_refuerzo: draft.fecha_refuerzo || null,
+      lote: draft.lote.trim() || null,
+      laboratorio: draft.laboratorio.trim() || null,
+      veterinario: draft.veterinario.trim() || null,
+    });
+    setDraft(EMPTY_VACCINE);
+  };
+
+  return (
+    <>
+      {doses.length > 0 && (
+        <div className={styles.vaccineList}>
+          {doses.map((d, i) => {
+            const detail = [
+              d.fecha_aplicacion && `Aplicada: ${d.fecha_aplicacion}`,
+              d.fecha_refuerzo && `Refuerzo: ${d.fecha_refuerzo}`,
+              d.lote && `Lote: ${d.lote}`,
+              d.laboratorio && `Lab: ${d.laboratorio}`,
+              d.veterinario && `Vet: ${d.veterinario}`,
+            ]
+              .filter(Boolean)
+              .join(" · ");
+
+            return (
+              <div key={i} className={styles.vaccineItem}>
+                <div className={styles.vaccineItemInfo}>
+                  <strong>{d.vacuna}</strong>
+                  <span>{detail || "Sin detalle adicional"}</span>
+                </div>
+                <span className={styles.tagDel} onClick={() => onRemove(i)}>
+                  ×
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className={styles.vaccineGrid}>
+        <Field label="Vacuna" required>
+          <input
+            type="text"
+            placeholder="Ej: Rabia, Parvovirus"
+            value={draft.vacuna}
+            onChange={set("vacuna")}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleAdd();
+              }
+            }}
+          />
+        </Field>
+        <Field label="Lote">
+          <input
+            type="text"
+            placeholder="N° de lote"
+            value={draft.lote}
+            onChange={set("lote")}
+          />
+        </Field>
+        <Field label="Fecha de aplicación">
+          <input
+            type="date"
+            value={draft.fecha_aplicacion}
+            onChange={set("fecha_aplicacion")}
+          />
+        </Field>
+        <Field label="Próximo refuerzo">
+          <input
+            type="date"
+            value={draft.fecha_refuerzo}
+            onChange={set("fecha_refuerzo")}
+          />
+        </Field>
+        <Field label="Laboratorio">
+          <input
+            type="text"
+            placeholder="Fabricante"
+            value={draft.laboratorio}
+            onChange={set("laboratorio")}
+          />
+        </Field>
+        <Field label="Veterinario">
+          <input
+            type="text"
+            placeholder="Quién la aplicó"
+            value={draft.veterinario}
+            onChange={set("veterinario")}
+          />
+        </Field>
+      </div>
+
+      <div className={styles.tagInputRow} style={{ marginTop: 10 }}>
+        <button type="button" className={styles.addBtn} onClick={handleAdd}>
+          + Agregar vacuna
+        </button>
+      </div>
+    </>
+  );
+}
+
 const IconUser = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="8" r="4" />
@@ -254,7 +377,6 @@ export default function ConsultaForm({ onSave }) {
   const [analytics, setAnalytics] = useState([]);
   const [analyticsNotes, setAnalyticsNotes] = useState("");
   const [vaccines, setVaccines] = useState([]);
-  const [vacBatch, setVacBatch] = useState("");
   const [attachedFiles, setAttachedFiles] = useState([]);
 
   const [mascotas, setMascotas] = useState([]);
@@ -969,7 +1091,6 @@ export default function ConsultaForm({ onSave }) {
           analisis: analytics,
           notas_analisis: analyticsNotes,
           vacunas: vaccines,
-          lote_vacuna: vacBatch,
           patient: selectedPatient || null,
           attachedFiles,
         });
@@ -1026,7 +1147,6 @@ export default function ConsultaForm({ onSave }) {
 
       formData.append("notas_medicacion", medNotes || "");
       formData.append("notas_analisis", analyticsNotes || "");
-      formData.append("lote_vacuna", vacBatch || "");
 
       formData.append("tipos_consulta", JSON.stringify(visitTypes));
       formData.append("medicaciones", JSON.stringify(meds));
@@ -1566,20 +1686,11 @@ export default function ConsultaForm({ onSave }) {
             <div className={styles.divider} />
 
             <SectionCard icon={<IconSyringe />} title="Vacunas aplicadas" className={styles.full}>
-              <TagInput
-                tags={vaccines}
-                onAdd={addTag(setVaccines)}
+              <VaccineEditor
+                doses={vaccines}
+                onAdd={(dose) => setVaccines((prev) => [...prev, dose])}
                 onRemove={removeTag(setVaccines)}
-                placeholder="Ej: Rabia, Parvovirus"
               />
-              <Field label="Lote / observaciones">
-                <input
-                  type="text"
-                  placeholder="Número de lote o notas…"
-                  value={vacBatch}
-                  onChange={(e) => setVacBatch(e.target.value)}
-                />
-              </Field>
             </SectionCard>
 
             <SectionCard icon={<IconClip />} title="Archivos adjuntos" className={styles.full}>

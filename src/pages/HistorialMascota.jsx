@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import "./historialMascota.css";
 import PageHeader from "../components/PageHeader";
-import { PawPrint } from "lucide-react";
+import { PawPrint, Printer } from "lucide-react";
 import Swal from "sweetalert2";
+import HistorialClinicoDoc from "../components/HistorialClinicoDoc.jsx";
 
 const API_URL = import.meta.env.VITE_API_URL || "";
 
@@ -383,6 +384,57 @@ export default function HistorialMascota() {
     }
   };
 
+  const exportData = useMemo(() => {
+    const pet = {
+      nombre: mascotaNombre,
+      especie: mascotaInfo?.species ?? mascotaInfo?.especie ?? "",
+      raza: mascotaRaza,
+      sexo:
+        mascotaInfo?.sex === "MALE"
+          ? "Macho"
+          : mascotaInfo?.sex === "FEMALE"
+          ? "Hembra"
+          : mascotaInfo?.sexo ?? "",
+      edad: mascotaInfo?.age_years ?? mascotaInfo?.edad ?? "",
+      peso: mascotaInfo?.weight_kg ?? mascotaInfo?.peso ?? "",
+      observaciones:
+        mascotaInfo?.observations ?? mascotaInfo?.observaciones ?? "",
+    };
+    const owner = {
+      nombre: clienteNombre,
+      telefono: clienteTelefono,
+      email: clienteInfo?.email ?? clienteInfo?.correo ?? "",
+    };
+    const docConsultas = (consultas || []).map((c) => ({
+      fecha: c.visit_at || c.fecha,
+      doctor: c.doctor,
+      tipos: normalizeVisitTypes(c.tipos_consulta, c.tipos_consulta_detalle),
+      motivo: c.reason || c.motivo,
+      diagnostico: c.diagnosis || c.diagnostico,
+      observaciones: c.notes || c.observaciones,
+      vitals: {
+        peso: c.peso,
+        temp: c.temperatura,
+        fc: c.frecuencia_cardiaca,
+        fr: c.frecuencia_respiratoria,
+        pa: c.presion_arterial,
+        sat: c.saturacion_oxigeno,
+      },
+      medicaciones: c.medicaciones,
+      analisis: c.analisis,
+      vacunas: c.vacunas,
+    }));
+    return { pet, owner, docConsultas };
+  }, [
+    mascotaInfo,
+    mascotaNombre,
+    mascotaRaza,
+    clienteNombre,
+    clienteTelefono,
+    clienteInfo,
+    consultas,
+  ]);
+
   return (
     <div className="hcd-page">
       <div className="hcd-container">
@@ -392,7 +444,37 @@ export default function HistorialMascota() {
           subtitle="Detalle clínico del paciente"
           onBack={() => navigate(-1)}
           backClassName="btn-back--s75"
-        />
+        >
+          {!loading && !error && mascotaInfo && (
+            <button
+              type="button"
+              onClick={() => window.print()}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                background: "#0f6e84",
+                color: "#fff",
+                border: "none",
+                borderRadius: 10,
+                padding: "9px 14px",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              <Printer size={16} /> Exportar historial
+            </button>
+          )}
+        </PageHeader>
+
+        {!loading && !error && mascotaInfo && (
+          <HistorialClinicoDoc
+            screenHidden
+            pet={exportData.pet}
+            owner={exportData.owner}
+            consultas={exportData.docConsultas}
+          />
+        )}
 
         {loading ? (
           <div className="hcd-state-card">Loading clinical history...</div>
