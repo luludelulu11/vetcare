@@ -140,6 +140,7 @@ model PregnancyConsultation {
   riesgo              String?
   tipoParto           String?   @map("tipo_parto")
   fechaProbableParto  DateTime? @map("fecha_probable_parto")
+  observacionesEmbarazo String? @map("observaciones_embarazo")
   deletedAt           DateTime? @map("deleted_at")
   createdAt           DateTime  @default(now()) @map("created_at")
   updatedAt           DateTime  @updatedAt @map("updated_at")
@@ -208,7 +209,6 @@ model Attachment {
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
   consultation Consultation @relation(fields: [consultationId], references: [id])
-  
   storageProvider String? @map("storage_provider")
   storageKey String? @map("storage_key")
   publicUrl String? @map("public_url")
