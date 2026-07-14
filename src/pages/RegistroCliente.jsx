@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import "./registroCliente.css";
+import "./RegistroCliente.css";
+import { IdCard } from "lucide-react";
+import PageHeader from "../components/PageHeader";
 
-const API_URL = "http://localhost:5000";
+
+const API_URL = import.meta.env.VITE_API_URL || "";
 
 export default function RegistroCliente() {
   const navigate = useNavigate();
@@ -23,8 +26,30 @@ const [clienteForm, setClienteForm] = useState({
   telefono2: "",
 });
 
+  const formatCedula = (value = "") => {
+    const digits = String(value).replace(/\D/g, "").slice(0, 11);
+
+    if (!digits) return "—";
+    if (digits.length <= 3) return digits;
+    if (digits.length <= 6) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+    if (digits.length <= 10) {
+      return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+    }
+    return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6, 10)}-${digits.slice(10)}`;
+  };
+
+  const formatPhone = (value = "") => {
+    const digits = String(value).replace(/\D/g, "").slice(0, 10);
+
+    if (!digits) return "—";
+    if (digits.length <= 3) return digits;
+    if (digits.length <= 6) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+    return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+  };
+
   useEffect(() => {
     const cargarRegistroCliente = async () => {
+
       try {
         setLoading(true);
         setError("");
@@ -37,6 +62,8 @@ const [clienteForm, setClienteForm] = useState({
           navigate("/", { replace: true });
           return;
         }
+
+
 
         const [clienteRes, mascotasRes] = await Promise.all([
           fetch(`${API_URL}/api/clientes?id=${clienteId}`, {
@@ -67,7 +94,7 @@ const [clienteForm, setClienteForm] = useState({
         try {
           clienteData = clienteRaw ? JSON.parse(clienteRaw) : [];
         } catch {
-          throw new Error("JSON inválido al cargar cliente.");
+          throw new Error("JSON inválido al cargar usuario.");
         }
 
         try {
@@ -77,15 +104,17 @@ const [clienteForm, setClienteForm] = useState({
         }
 
         if (!clienteRes.ok) {
-          throw new Error(clienteData?.message || "No se pudo cargar el cliente.");
+          throw new Error(clienteData?.message || "No se pudo cargar el usuario.");
         }
 
         if (!mascotasRes.ok) {
-          throw new Error(mascotasData?.message || "No se pudieron cargar las mascotas.");
+          throw new Error(
+            mascotasData?.message || "No se pudieron cargar las mascotas."
+          );
         }
 
         if (!Array.isArray(clienteData) || clienteData.length === 0) {
-          throw new Error("Cliente no encontrado.");
+          throw new Error("Usuario no encontrado.");
         }
 
         const cliente = clienteData[0];
@@ -109,7 +138,7 @@ const [clienteForm, setClienteForm] = useState({
             cliente.cedula ??
             cliente.Cedula ??
             cliente.cedulaCliente ??
-            "Sin cédula",
+            "",
           direccion:
             cliente.direccion ??
             cliente.Direccion ??
@@ -124,7 +153,7 @@ const [clienteForm, setClienteForm] = useState({
             cliente.telefono ??
             cliente.Telefono ??
             cliente.tel ??
-            "—",
+            "",
           telefono2:
             cliente.telefono2 ??
             cliente.Telefono2 ??
@@ -201,7 +230,7 @@ setClienteForm({
 setMascotas(normalizedMascotas);
       } catch (err) {
         console.error(err);
-        setError(err.message || "No se pudo cargar el registro del cliente.");
+        setError(err.message || "No se pudo cargar el registro del usuario.");
       } finally {
         setLoading(false);
       }
@@ -267,7 +296,7 @@ const handleSaveCliente = async () => {
     const data = await res.json().catch(() => ({}));
 
     if (!res.ok) {
-      throw new Error(data.message || "No se pudo actualizar el cliente.");
+      throw new Error(data.message || "No se pudo actualizar el usuario.");
     }
 
     setClienteInfo((prev) =>
@@ -284,10 +313,10 @@ const handleSaveCliente = async () => {
         : prev
     );
 
-    alert(data.message || "Cliente actualizado correctamente.");
+    alert(data.message || "Usuario actualizado correctamente.");
     setEditMode(false);
   } catch (err) {
-    alert(err.message || "Error actualizando cliente.");
+    alert(err.message || "Error actualizando usuario.");
   } finally {
     setSaving(false);
   }
@@ -327,12 +356,18 @@ const handleSaveCliente = async () => {
   };
 
   const renderMascotaRow = (mascota, index) => (
-    <button
-      type="button"
-      key={mascota.id}
-      className="rcc-pet-row"
-      onClick={() => navigate(`/historial-clinico/${mascota.id}`)}
-    >
+    <div
+        key={mascota.id}
+        className="rcc-pet-row"
+        role="button"
+        tabIndex={0}
+        onClick={() => navigate(`/historial-clinico/${mascota.id}`)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            navigate(`/historial-clinico/${mascota.id}`);
+          }
+        }}
+      >
       <div className="rcc-pet-left">
         <div className={`rcc-pet-avatar ${avatarClassByIndex(index)}`}>
           {getInitials(mascota.nombre)}
@@ -364,6 +399,7 @@ const handleSaveCliente = async () => {
         </div>
       </div>
 
+
       <div className="rcc-pet-right">
         <span className="rcc-pill">{mascota.peso || "Sin peso"}</span>
         <span className="rcc-pill rcc-pill--soft">
@@ -372,20 +408,17 @@ const handleSaveCliente = async () => {
         <button
   type="button"
   onClick={async (e) => {
-    e.stopPropagation(); // 🔥 importante para no navegar
+    e.stopPropagation();
 
     try {
       const token = localStorage.getItem("token");
 
-      const res = await fetch(
-        `${API_URL}/api/mascotas/${mascota.id}/toggle`,
-        {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const res = await fetch(`${API_URL}/api/mascotas/${mascota.id}/toggle`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       const data = await res.json();
 
@@ -398,84 +431,60 @@ const handleSaveCliente = async () => {
       alert(err.message);
     }
   }}
-  style={{
-    background: mascota.estado === "activo" ? "#fee2e2" : "#d1fae5",
-    color: mascota.estado === "activo" ? "#991b1b" : "#065f46",
-    border: "none",
-    padding: "6px 10px",
-    borderRadius: "6px",
-    cursor: "pointer",
-    fontSize: "12px",
-  }}
+  className={`pet-status-btn ${
+    mascota.estado === "activo"
+      ? "pet-status-btn--danger"
+      : "pet-status-btn--success"
+  }`}
 >
   {mascota.estado === "activo" ? "Desactivar" : "Activar"}
 </button>
-        <span className="rcc-chevron-btn">›</span>
-      </div>
-    </button>
-  );
+            <span className="chev-btn">›</span>
+          </div>
+        </div>
+      );
 
   return (
     <div className="rcc-page">
       <div className="rcc-container">
-        <header className="rcc-header">
-          <button
-            type="button"
-            className="rcc-back-btn"
-            onClick={() => navigate("/registro")}
-          >
-            ← volver
-          </button>
+        <PageHeader
+          icon={<IdCard size={24} />}
+          title="Registro de usuario"
+          subtitle="Detalle del usuario y sus mascotas"
+          onBack={() => navigate("/registro")}
+          backClassName="btn-back--s75"
 
-          <div className="rcc-header-copy">
-            <h1>Registro de cliente</h1>
-            <p>Detalle del cliente y sus mascotas</p>
-          </div>
-        </header>
+        />
 
         {loading ? (
-          <div className="rcc-state-card">Cargando registro del cliente...</div>
+          <div className="rcc-state-card">Cargando registro del usuario...</div>
         ) : error ? (
           <div className="rcc-state-card rcc-state-card--error">{error}</div>
         ) : (
           <>
             <section className="rcc-summary-grid">
               <article className="rcc-card">
-                <h2>CLIENTE</h2>
+                <h2>USUARIO</h2>
 
                 <div style={{ marginBottom: "10px" }}>
                   <button
                     type="button"
                     onClick={handleToggleCliente}
-                    style={{
-                      background: "#0f766e",
-                      color: "#fff",
-                      border: "none",
-                      padding: "8px 12px",
-                      borderRadius: "6px",
-                      cursor: "pointer",
-                    }}
-                  >
+                    className="rc-toggle-btn"
+                    >
                     Cambiar estado (Activo / Inactivo)
                   </button>
                 </div>
 
                 <div style={{ marginBottom: "12px" }}>
   {!editMode ? (
-    <button
-      type="button"
-      onClick={() => setEditMode(true)}
-      style={{
-        background: "#1d4ed8",
-        color: "#fff",
-        border: "none",
-        padding: "8px 12px",
-        borderRadius: "6px",
-        cursor: "pointer",
-      }}
-    >
-      Editar datos
-    </button>
+          <button
+        type="button"
+        onClick={() => setEditMode(true)}
+        className="rc-edit-btn"
+      >
+        Editar datos
+      </button>
   ) : (
     <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
       <button
@@ -650,7 +659,7 @@ const handleSaveCliente = async () => {
 
               {mascotas.length === 0 ? (
                 <div className="rcc-state-card">
-                  Este cliente no tiene mascotas registradas.
+                  Este usuario no tiene mascotas registradas.
                 </div>
               ) : (
                 <div className="rcc-list">

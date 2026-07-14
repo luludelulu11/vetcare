@@ -7,6 +7,7 @@ import {
   validators,
 } from "../utils/formRules";
 import Swal from "sweetalert2";
+import FormHeader from "../components/FormHeader";
 
 const API_URL = "http://localhost:5000";
 

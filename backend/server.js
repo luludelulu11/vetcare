@@ -6,12 +6,14 @@ import jwt from "jsonwebtoken";
 import mysql from "mysql2/promise";
 import crypto from "crypto";
 import multer from "multer";
+import { v2 as cloudinary } from "cloudinary";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import rateLimit from "express-rate-limit";
 import nodemailer from "nodemailer";
 import cron from "node-cron";
+import prisma from "./db.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -36,6 +38,39 @@ app.use(
 
 app.use(express.json());
 
+const distPath = path.join(__dirname, "../dist");
+app.use(express.static(distPath));
+
+app.get("/test", (req, res) => {
+  res.json({ ok: true, message: "backend funcionando correctamente" });
+});
+
+app.get("/test-neon", async (req, res) => {
+  try {
+    const result = await prisma.$queryRaw`
+      SELECT
+        current_database() AS database_name,
+        current_schema() AS schema_name,
+        NOW() AS server_time
+    `;
+
+    res.json({
+      ok: true,
+      message: "Backend conectado correctamente con Neon mediante Prisma",
+      database: result[0],
+    });
+  } catch (error) {
+    console.error("Error comprobando Neon:", error);
+
+    res.status(500).json({
+      ok: false,
+      message: "No se pudo conectar con Neon",
+    });
+  }
+});
+
+app.use(express.json());
+
 const uploadsBaseDir = path.join(__dirname, "uploads");
 const consultasUploadsDir = path.join(uploadsBaseDir, "consultas");
 
@@ -49,16 +84,30 @@ if (!fs.existsSync(consultasUploadsDir)) {
 
 app.use("/uploads", express.static(uploadsBaseDir));
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, consultasUploadsDir);
-  },
-  filename: (req, file, cb) => {
-    const uniquePrefix = `${Date.now()}-${crypto.randomUUID()}`;
-    const safeOriginalName = file.originalname.replace(/[^\w.\-]/g, "_");
-    cb(null, `${uniquePrefix}-${safeOriginalName}`);
-  },
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
+
+const uploadBufferToCloudinary = (file) =>
+  new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: "vetcare/consultas",
+        resource_type: "auto",
+        public_id: `${Date.now()}-${crypto.randomUUID()}`,
+      },
+      (error, result) => {
+        if (error) return reject(error);
+        resolve(result);
+      }
+    );
+
+    stream.end(file.buffer);
+  });
+
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage,
@@ -119,14 +168,16 @@ function formatDateForEmail(dateValue) {
     minute: "2-digit",
   });
 }
+
 function getReminderConfig(tipo, row) {
   if (tipo === "atrasada") {
     return {
-      subject: `Recordatorio de consulta atrasada - ${row.mascota_nombre}`,
-      title: "Consulta atrasada",
-      message: `La consulta o seguimiento de su mascota <strong>${row.mascota_nombre}</strong> está atrasada.`,
-      footer: "Por favor comuníquese con la veterinaria para reagendar.",
-      fieldLabel: "Fecha",
+      subject: `Seguimiento pendiente de consulta - ${row.mascota_nombre}`,
+      title: "Consulta pendiente de seguimiento",
+      message: `Le informamos que la consulta o seguimiento de su mascota <strong>${row.mascota_nombre}</strong> se encuentra pendiente.`,
+      footer:
+        "Le recomendamos comunicarse con la clínica a la mayor brevedad para reprogramar la cita y dar continuidad a la atención médica.",
+      fieldLabel: "Fecha registrada",
       fieldValue: formatDateForEmail(row.proxima_cita),
       notifiedColumn: "atraso_notificado_at",
       logLabel: "consulta atrasada",
@@ -135,13 +186,14 @@ function getReminderConfig(tipo, row) {
 
   if (tipo === "manana") {
     return {
-      subject: `Recordatorio de cita para mañana - ${row.mascota_nombre}`,
-      title: "Cita programada para mañana",
-      message: `Le recordamos que su mascota <strong>${row.mascota_nombre}</strong> tiene una cita programada para mañana.`,
-      footer: "Le esperamos en la veterinaria. Si necesita reprogramar, por favor comuníquese con nosotros.",
-      fieldLabel: "Fecha de la cita",
+      subject: `Recordatorio de cita programada - ${row.mascota_nombre}`,
+      title: "Recordatorio de cita para mañana",
+      message: `Le recordamos que su mascota <strong>${row.mascota_nombre}</strong> tiene una cita programada para mañana en nuestra veterinaria.`,
+      footer:
+        "En caso de no poder asistir en el horario indicado, por favor comuníquese con nosotros con anticipación para ayudarle a reprogramar.",
+      fieldLabel: "Fecha y hora de la cita",
       fieldValue: formatDateForEmail(row.proxima_cita),
-      notifiedColumn: "manana_notificado_at",
+      notifiedColumn: "recordatorio_manana_enviado_at",
       logLabel: "cita de mañana",
     };
   }
@@ -149,37 +201,61 @@ function getReminderConfig(tipo, row) {
   throw new Error(`Tipo de recordatorio no soportado: ${tipo}`);
 }
 
-async function enviarCorreoConsulta({ connection, row, tipo, marcarNotificado = true }) {
+async function enviarCorreoConsulta({
+  connection,
+  row,
+  tipo,
+  marcarNotificado = true,
+}) {
   const config = getReminderConfig(tipo, row);
 
   const html = `
-<div style="font-family: Arial; padding:20px;">
-  <div style="text-align:center; margin-bottom:20px;">
-    <img src="cid:logoVetcare" width="120" />
-  </div>
+    <div style="font-family: Arial, Helvetica, sans-serif; background-color:#f5f7fa; padding:24px;">
+      <div style="max-width:600px; margin:0 auto; background:#ffffff; border-radius:14px; overflow:hidden; border:1px solid #e5e7eb;">
 
-  <h2 style="text-align:center;">VetCare</h2>
-  <h3 style="text-align:center;">${config.title}</h3>
+        <div style="padding:28px 32px 10px; text-align:center;">
+          <img src="cid:logoVerde" width="72" alt="VetCare" style="display:block; margin:0 auto 12px;" />
+          <h1 style="margin:0; font-size:28px; color:#2a9d8f; font-weight:700;">VetCare</h1>
+          <p style="margin:8px 0 0; color:#6b7280; font-size:14px;">
+            Cuidado veterinario con seguimiento oportuno
+          </p>
+        </div>
 
-  <p>Hola${row.cliente_nombre ? ` ${row.cliente_nombre}` : ""},</p>
+        <div style="padding:24px 32px 32px; color:#1f2937; line-height:1.6;">
+          <h2 style="margin:0 0 16px; font-size:22px; color:#111827; text-align:center;">
+            ${config.title}
+          </h2>
 
-  <p>${config.message}</p>
+          <p style="margin:0 0 16px;">
+            Estimado/a${row.cliente_nombre ? ` <strong>${row.cliente_nombre}</strong>` : ""},
+          </p>
 
-  <div style="background:#f4e7c5; padding:15px; border-radius:8px;">
-    <p><strong>Mascota:</strong> ${row.mascota_nombre}</p>
-    <p><strong>Motivo:</strong> ${row.motivo || "No especificado"}</p>
-    <p><strong>${config.fieldLabel}:</strong> ${config.fieldValue}</p>
-  </div>
+          <p style="margin:0 0 18px;">
+            ${config.message}
+          </p>
 
-  <p>${config.footer}</p>
+          <div style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:12px; padding:18px 20px; margin:20px 0;">
+            <p style="margin:0 0 10px;"><strong>Mascota:</strong> ${row.mascota_nombre}</p>
+            <p style="margin:0 0 10px;"><strong>Motivo de la consulta:</strong> ${row.motivo || "No especificado"}</p>
+            <p style="margin:0;"><strong>${config.fieldLabel}:</strong> ${config.fieldValue}</p>
+          </div>
 
-  <hr />
+          <p style="margin:0 0 16px;">
+            ${config.footer}
+          </p>
 
-  <p style="font-size:12px; color:gray;">
-    VetCare - Sistema automático
-  </p>
-</div>
-`;
+          <p style="margin:0 0 16px;">
+            Agradecemos su confianza en nuestro equipo. Mantener el seguimiento de las citas contribuye al bienestar y la salud de su mascota.
+          </p>
+
+          <div style="margin-top:28px; padding-top:18px; border-top:1px solid #e5e7eb; font-size:13px; color:#6b7280;">
+            <p style="margin:0 0 6px;"><strong>VetCare</strong></p>
+            <p style="margin:0;">Este es un mensaje automático del sistema de recordatorios.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
 
   await mailTransporter.sendMail({
     from: process.env.MAIL_FROM,
@@ -188,9 +264,9 @@ async function enviarCorreoConsulta({ connection, row, tipo, marcarNotificado = 
     html,
     attachments: [
       {
-        filename: "logo-vetcare.png",
-        path: path.join(__dirname, "../public/logo-vetcare.png"),
-        cid: "logoVetcare",
+        filename: "logo-verde.png",
+        path: path.join(__dirname, "../public/logo-verde.png"),
+        cid: "logoVerde",
       },
     ],
   });
@@ -247,35 +323,14 @@ async function enviarCorreosConsultasManana() {
 
     for (const row of rows) {
       try {
-        await mailTransporter.sendMail({
-          from: process.env.MAIL_FROM,
-          to: row.cliente_correo,
-          subject: `Recordatorio de cita para mañana - ${row.mascota_nombre}`,
-          html: `
-            <div style="font-family: Arial; padding:20px;">
-              <h2>VetCare</h2>
-              <p>Hola${row.cliente_nombre ? ` ${row.cliente_nombre}` : ""},</p>
-
-              <p>Le recordamos que su mascota <strong>${row.mascota_nombre}</strong> tiene una cita programada para mañana.</p>
-
-              <p><strong>Fecha:</strong> ${formatDateForEmail(row.proxima_cita)}</p>
-
-              <p>Le esperamos en la veterinaria.</p>
-            </div>
-          `,
+        await enviarCorreoConsulta({
+          connection,
+          row,
+          tipo: "manana",
+          marcarNotificado: true,
         });
 
-        await connection.execute(
-          `
-          UPDATE consultas
-          SET recordatorio_manana_enviado_at = NOW(),
-              updated_at = NOW()
-          WHERE id = ?
-          `,
-          [row.id]
-        );
-
-        console.log(`Correo de mañana enviado. Consulta: ${row.id}`);
+        console.log(`Correo de cita para mañana enviado. Consulta: ${row.id}`);
       } catch (mailError) {
         console.error(`Error enviando correo de mañana ${row.id}:`, mailError);
       }
@@ -288,6 +343,7 @@ async function enviarCorreosConsultasManana() {
     }
   }
 }
+
 function requireAuth(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
@@ -297,6 +353,8 @@ function requireAuth(req, res, next) {
         message: "No autorizado. Token requerido.",
       });
     }
+
+
 
     const token = authHeader.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -310,9 +368,19 @@ function requireAuth(req, res, next) {
   }
 }
 
+function requireAdmin(req, res, next) {
+  if (!req.user || req.user.role !== "ADMIN") {
+    return res.status(403).json({
+      message: "Acceso denegado. Solo administradores.",
+    });
+  }
+
+  next();
+}
+
 const apiLimiter = rateLimit({
   windowMs: 1 * 60 * 1000,
-  max: 150,
+  max: 400,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -326,18 +394,18 @@ const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: {
-    message: "Demasiados intentos de inicio de sesión. Intenta dentro de 15 minutos.",
+    message:
+      "Demasiados intentos de inicio de sesión. Intenta dentro de 15 minutos.",
   },
 });
+
+
 
 app.use("/api", apiLimiter);
 
 // =============================
 // ROOT
 // =============================
-app.get("/", (req, res) => {
-  res.send("API running");
-});
 
 // =============================
 // TEST ROUTE
@@ -350,223 +418,298 @@ app.get("/test", (req, res) => {
 });
 
 // =============================
-// REGISTER CLIENT
+// REGISTER CLIENT - PRISMA / NEON
 // =============================
 app.post("/api/clientes", requireAuth, async (req, res) => {
   try {
-    const { nombre, cedula, direccion, correo, telefono, telefono2 } = req.body;
+    const {
+      nombre,
+      cedula,
+      direccion,
+      correo,
+      telefono,
+      telefono2,
+    } = req.body;
 
-    if (!nombre || !cedula || !direccion || !correo || !telefono) {
+    const cleanNombre = String(nombre || "").trim();
+    const cleanCedula = String(cedula || "").trim();
+    const cleanDireccion = String(direccion || "").trim();
+    const cleanCorreo = String(correo || "").trim().toLowerCase();
+    const cleanTelefono = String(telefono || "").trim();
+    const cleanTelefono2 = String(telefono2 || "").trim();
+
+    if (
+      !cleanNombre ||
+      !cleanCedula ||
+      !cleanDireccion ||
+      !cleanCorreo ||
+      !cleanTelefono
+    ) {
       return res.status(400).json({
         message: "Complete todos los campos requeridos",
       });
     }
 
-    const [existingClients] = await pool.execute(
-      `
-      SELECT id
-      FROM clients
-      WHERE national_id = ?
-        AND deleted_at IS NULL
-      LIMIT 1
-      `,
-      [cedula.trim()]
-    );
+    const existingClient = await prisma.client.findFirst({
+      where: {
+        nationalId: cleanCedula,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+      },
+    });
 
-    if (existingClients.length > 0) {
+    if (existingClient) {
       return res.status(409).json({
         message: "Ya existe un cliente con dicha cédula",
       });
     }
 
-    const clientId = crypto.randomUUID();
-
-    const nameParts = nombre.trim().split(" ");
+    const nameParts = cleanNombre.split(/\s+/);
     const firstName = nameParts[0];
     const lastName = nameParts.slice(1).join(" ") || "-";
 
-    await pool.execute(
-      `
-      INSERT INTO clients (
-        id,
-        first_name,
-        last_name,
-        national_id,
-        email,
-        phone_primary,
-        phone_secondary,
-        address_line1,
-        deleted_at,
-        created_at,
-        updated_at
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NOW(), NOW())
-      `,
-      [
-        clientId,
+    const client = await prisma.client.create({
+      data: {
         firstName,
         lastName,
-        cedula.trim(),
-        correo.trim().toLowerCase(),
-        telefono.trim(),
-        telefono2?.trim() || null,
-        direccion.trim(),
-      ]
-    );
+        nationalId: cleanCedula,
+        email: cleanCorreo,
+        phonePrimary: cleanTelefono,
+        phoneSecondary: cleanTelefono2 || null,
+        addressLine1: cleanDireccion,
+      },
+    });
 
     return res.status(201).json({
-      message: "Cliente guardado exitosamente",
+      message: "Usuario guardado exitosamente",
       client: {
-        id: clientId,
-        nombre,
-        cedula,
-        direccion,
-        correo,
-        telefono,
-        telefono2,
+        id: client.id,
+        nombre: `${client.firstName} ${client.lastName}`.trim(),
+        cedula: client.nationalId,
+        direccion: client.addressLine1,
+        correo: client.email,
+        telefono: client.phonePrimary,
+        telefono2: client.phoneSecondary,
       },
     });
   } catch (error) {
-    console.error("Error saving client:", error);
+    console.error("Error saving client with Prisma:", error);
+
+    if (error.code === "P2002") {
+      return res.status(409).json({
+        message: "Ya existe un cliente con esa cédula.",
+      });
+    }
 
     return res.status(500).json({
-      message:
-        "El correo suministrado ya está registrado u ocurrió un error al guardar el cliente.",
+      message: "Ocurrió un error al guardar el cliente.",
     });
   }
 });
-
 // =============================
-// GET CLIENTS
-// Filtro por id
+// GET CLIENTS - PRISMA / NEON
 // =============================
 app.get("/api/clientes", requireAuth, async (req, res) => {
   try {
     const { id, estado } = req.query;
 
-    let sql = `
-  SELECT
-    id,
-    CONCAT(first_name, ' ', last_name) AS nombre,
-    national_id AS cedula,
-    address_line1 AS direccion,
-    email AS correo,
-    phone_primary AS telefono,
-    phone_secondary AS telefono2,
-    CASE
-      WHEN deleted_at IS NULL THEN 'activo'
-      ELSE 'inactivo'
-    END AS estado
-  FROM clients
-  WHERE 1=1
-`;
-
-    const params = [];
+    const where = {};
 
     if (id) {
-      sql += ` AND id = ? `;
-      params.push(id);
+      where.id = String(id);
     }
+
     if (estado === "activo") {
-  sql += ` AND deleted_at IS NULL `;
-}
+      where.deletedAt = null;
+    }
 
-if (estado === "inactivo") {
-  sql += ` AND deleted_at IS NOT NULL `;
-}
+    if (estado === "inactivo") {
+      where.deletedAt = {
+        not: null,
+      };
+    }
 
-    sql += ` ORDER BY first_name, last_name `;
+    const clients = await prisma.client.findMany({
+      where,
+      orderBy: [
+        {
+          firstName: "asc",
+        },
+        {
+          lastName: "asc",
+        },
+      ],
+    });
 
-    const [rows] = await pool.execute(sql, params);
+    const response = clients.map((client) => ({
+      id: client.id,
+      nombre: `${client.firstName} ${client.lastName}`.trim(),
+      cedula: client.nationalId,
+      direccion: client.addressLine1,
+      correo: client.email,
+      telefono: client.phonePrimary,
+      telefono2: client.phoneSecondary,
+      estado: client.deletedAt === null ? "activo" : "inactivo",
+    }));
 
-    return res.json(rows);
+    return res.json(response);
   } catch (error) {
-    console.error("Error loading clients:", error);
+    console.error("Error loading clients with Prisma:", error);
 
     return res.status(500).json({
-      message: "Error interno del servidor",
+      message: "Error interno del servidor.",
     });
   }
 });
 
+
+//DB de azure
+
+app.get("/db-check", async (req, res) => {
+  try {
+    const [rows] = await pool.execute("SELECT NOW() AS now_time");
+    res.json({ ok: true, rows });
+  } catch (error) {
+    console.error("DB CHECK ERROR:", error);
+    res.status(500).json({
+      ok: false,
+      message: error.message,
+      code: error.code || null,
+      sqlMessage: error.sqlMessage || null,
+    });
+  }
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // =============================
-// REGISTER PET
+// REGISTER PET - PRISMA / NEON
 // =============================
 app.post("/api/mascotas", requireAuth, async (req, res) => {
   try {
-    const { clienteId, nombre, edad, raza, sexo, peso, observaciones } = req.body;
+    const {
+      clienteId,
+      nombre,
+      edad,
+      raza,
+      sexo,
+      peso,
+      observaciones,
+    } = req.body;
 
-    if (!clienteId || !nombre || !edad || !raza || !sexo || !peso) {
+    const cleanClienteId = String(clienteId || "").trim();
+    const cleanNombre = String(nombre || "").trim();
+    const cleanRaza = String(raza || "").trim();
+    const cleanSexo = String(sexo || "").trim();
+    const cleanObservaciones = String(observaciones || "").trim();
+
+    if (
+      !cleanClienteId ||
+      !cleanNombre ||
+      !edad ||
+      !cleanRaza ||
+      !cleanSexo ||
+      !peso
+    ) {
       return res.status(400).json({
         message: "Complete todos los campos obligatorios.",
       });
     }
 
-    const [clients] = await pool.execute(
-      `
-      SELECT id
-      FROM clients
-      WHERE id = ?
-        AND deleted_at IS NULL
-      LIMIT 1
-      `,
-      [clienteId]
-    );
+    const ageYears = Number.parseInt(edad, 10);
+    const weightKg = Number.parseFloat(peso);
 
-    if (clients.length === 0) {
-      return res.status(404).json({
-        message: "Cliente no encontrado",
+    if (!Number.isInteger(ageYears) || ageYears < 0) {
+      return res.status(400).json({
+        message: "La edad de la mascota no es válida.",
       });
     }
 
-    const petId = crypto.randomUUID();
+    if (!Number.isFinite(weightKg) || weightKg <= 0) {
+      return res.status(400).json({
+        message: "El peso de la mascota no es válido.",
+      });
+    }
+
+    const client = await prisma.client.findFirst({
+      where: {
+        id: cleanClienteId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!client) {
+      return res.status(404).json({
+        message: "Usuario no encontrado.",
+      });
+    }
 
     let sexValue = "UNKNOWN";
-    if (sexo === "Macho") sexValue = "MALE";
-    if (sexo === "Hembra") sexValue = "FEMALE";
 
-    const ageYears = parseInt(edad, 10);
-    const weightKg = parseFloat(peso);
+    if (
+      cleanSexo.toLowerCase() === "macho" ||
+      cleanSexo.toUpperCase() === "MALE"
+    ) {
+      sexValue = "MALE";
+    }
 
-    await pool.execute(
-      `
-      INSERT INTO pets (
-        id,
-        client_id,
-        name,
-        breed,
-        sex,
-        age_years,
-        weight_kg,
-        weight_text,
-        observations,
-        deleted_at,
-        created_at,
-        updated_at
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NOW(), NOW())
-      `,
-      [
-        petId,
-        clienteId,
-        nombre.trim(),
-        raza.trim(),
-        sexValue,
+    if (
+      cleanSexo.toLowerCase() === "hembra" ||
+      cleanSexo.toUpperCase() === "FEMALE"
+    ) {
+      sexValue = "FEMALE";
+    }
+
+    const pet = await prisma.pet.create({
+      data: {
+        clientId: cleanClienteId,
+        name: cleanNombre,
+        breed: cleanRaza,
+        sex: sexValue,
         ageYears,
         weightKg,
-        String(peso),
-        observaciones || null,
-      ]
-    );
+        weightText: String(peso),
+        observations: cleanObservaciones || null,
+      },
+      select: {
+        id: true,
+        name: true,
+        clientId: true,
+      },
+    });
 
     return res.status(201).json({
       message: "Mascota guardada exitosamente.",
       pet: {
-        id: petId,
+        id: pet.id,
+        nombre: pet.name,
+        clienteId: pet.clientId,
       },
     });
   } catch (error) {
-    console.error("Error al guardar la mascota:", error);
+    console.error("Error guardando mascota con Prisma:", error);
+
+    if (error.code === "P2003") {
+      return res.status(400).json({
+        message: "El usuario seleccionado no existe.",
+      });
+    }
 
     return res.status(500).json({
       message: "Error interno del servidor.",
@@ -585,24 +728,16 @@ app.put("/api/clientes/:id/toggle", requireAuth, async (req, res) => {
 
     if (rows.length === 0) {
       return res.status(404).json({
-        message: "Cliente no encontrado",
+        message: "Usuario no encontrado",
       });
     }
 
     const cliente = rows[0];
 
     if (cliente.deleted_at === null) {
-      // pasar a inactivo
-      await pool.execute(
-        `UPDATE clients SET deleted_at = NOW() WHERE id = ?`,
-        [id]
-      );
+      await pool.execute(`UPDATE clients SET deleted_at = NOW() WHERE id = ?`, [id]);
     } else {
-      // volver a activo
-      await pool.execute(
-        `UPDATE clients SET deleted_at = NULL WHERE id = ?`,
-        [id]
-      );
+      await pool.execute(`UPDATE clients SET deleted_at = NULL WHERE id = ?`, [id]);
     }
 
     return res.json({
@@ -633,7 +768,7 @@ app.put("/api/clientes/:id", requireAuth, async (req, res) => {
 
     if (rows.length === 0) {
       return res.status(404).json({
-        message: "Cliente no encontrado",
+        message: "Usuario no encontrado",
       });
     }
 
@@ -663,7 +798,7 @@ app.put("/api/clientes/:id", requireAuth, async (req, res) => {
 
     if (existingCedula.length > 0) {
       return res.status(409).json({
-        message: "Ya existe otro cliente con esa cédula",
+        message: "Ya existe otro usuario con esa cédula",
       });
     }
 
@@ -715,296 +850,456 @@ app.put("/api/clientes/:id", requireAuth, async (req, res) => {
     );
 
     return res.json({
-      message: "Cliente actualizado correctamente.",
+      message: "Usuario actualizado correctamente.",
     });
   } catch (error) {
     console.error("Error updating client:", error);
     return res.status(500).json({
-      message: "Error actualizando cliente.",
+      message: "Error actualizando usuario.",
     });
   }
 });
 
 // =============================
-// GET PETS
-// Filtro por id y clienteId
+// GET PETS - PRISMA / NEON
 // =============================
 app.get("/api/mascotas", requireAuth, async (req, res) => {
   try {
     const { id, clienteId, estado } = req.query;
 
-    let sql = `
-  SELECT
-    p.id,
-    p.client_id AS clienteId,
-    p.client_id,
-    p.name AS nombre,
-    p.name,
-    p.breed AS raza,
-    p.breed,
-    p.age_years AS edad,
-    p.age_years,
-    p.sex AS sexo,
-    p.weight_kg AS peso,
-    p.weight_kg,
-    p.observations AS observaciones,
-    c.first_name,
-    c.last_name,
-    CASE
-      WHEN p.deleted_at IS NULL THEN 'activo'
-      ELSE 'inactivo'
-    END AS estado
-  FROM pets p
-  JOIN clients c ON p.client_id = c.id
-  WHERE 1=1
-`;
-
-    const params = [];
+    const where = {};
 
     if (id) {
-      sql += ` AND p.id = ? `;
-      params.push(id);
+      where.id = String(id);
     }
 
     if (clienteId) {
-      sql += ` AND p.client_id = ? `;
-      params.push(clienteId);
+      where.clientId = String(clienteId);
     }
 
     if (estado === "activo") {
-  sql += ` AND p.deleted_at IS NULL `;
-}
+      where.deletedAt = null;
+    }
 
-if (estado === "inactivo") {
-  sql += ` AND p.deleted_at IS NOT NULL `;
-}
+    if (estado === "inactivo") {
+      where.deletedAt = {
+        not: null,
+      };
+    }
 
-    sql += ` ORDER BY p.name `;
+    const pets = await prisma.pet.findMany({
+      where,
+      include: {
+        client: true,
+      },
+      orderBy: {
+        name: "asc",
+      },
+    });
 
-    const [rows] = await pool.execute(sql, params);
+    const response = pets.map((pet) => {
+      const peso =
+        pet.weightKg === null || pet.weightKg === undefined
+          ? null
+          : Number(pet.weightKg);
 
-    return res.json(rows);
+      return {
+        id: pet.id,
+
+        clienteId: pet.clientId,
+        client_id: pet.clientId,
+
+        nombre: pet.name,
+        name: pet.name,
+
+        raza: pet.breed || "",
+        breed: pet.breed || "",
+
+        edad: pet.ageYears,
+        age_years: pet.ageYears,
+
+        sexo: pet.sex || "",
+
+        peso,
+        weight_kg: peso,
+        weight_text: pet.weightText || "",
+
+        observaciones: pet.observations || "",
+
+        first_name: pet.client?.firstName || "",
+        last_name: pet.client?.lastName || "",
+
+        propietario: [
+          pet.client?.firstName,
+          pet.client?.lastName,
+        ]
+          .filter(Boolean)
+          .join(" "),
+
+        estado: pet.deletedAt === null ? "activo" : "inactivo",
+      };
+    });
+
+    return res.json(response);
   } catch (error) {
-    console.error("Error al cargar las mascotas:", error);
+    console.error("ERROR GET /api/mascotas:", error);
 
     return res.status(500).json({
       message: "Error interno del servidor.",
+      detail: error.message,
+      code: error.code || null,
     });
   }
 });
 
+// =============================
+// TOGGLE PET STATUS - PRISMA / NEON
+// =============================
 app.put("/api/mascotas/:id/toggle", requireAuth, async (req, res) => {
-  const { id } = req.params;
-
   try {
-    const [rows] = await pool.execute(
-      `SELECT id, deleted_at FROM pets WHERE id = ? LIMIT 1`,
-      [id]
-    );
+    const { id } = req.params;
 
-    if (rows.length === 0) {
+    const pet = await prisma.pet.findUnique({
+      where: {
+        id,
+      },
+      select: {
+        id: true,
+        deletedAt: true,
+      },
+    });
+
+    if (!pet) {
       return res.status(404).json({
-        message: "Mascota no encontrada",
+        message: "Mascota no encontrada.",
       });
     }
 
-    const mascota = rows[0];
+    const newDeletedAt = pet.deletedAt === null ? new Date() : null;
 
-    if (mascota.deleted_at === null) {
-      await pool.execute(
-        `UPDATE pets SET deleted_at = NOW() WHERE id = ?`,
-        [id]
-      );
-    } else {
-      await pool.execute(
-        `UPDATE pets SET deleted_at = NULL WHERE id = ?`,
-        [id]
-      );
-    }
+    const updatedPet = await prisma.pet.update({
+      where: {
+        id,
+      },
+      data: {
+        deletedAt: newDeletedAt,
+      },
+      select: {
+        id: true,
+        deletedAt: true,
+      },
+    });
 
     return res.json({
-      message: "Estado actualizado",
+      message:
+        updatedPet.deletedAt === null
+          ? "Mascota activada correctamente."
+          : "Mascota desactivada correctamente.",
+      estado: updatedPet.deletedAt === null ? "activo" : "inactivo",
     });
   } catch (error) {
-    console.error("Error toggling mascota:", error);
+    console.error("Error toggling pet with Prisma:", error);
+
     return res.status(500).json({
-      message: "Error actualizando estado",
+      message: "Error actualizando el estado de la mascota.",
     });
   }
 });
 
+// =============================
+// UPDATE PET - PRISMA / NEON
+// =============================
 app.put("/api/mascotas/:id", requireAuth, async (req, res) => {
-  const { id } = req.params;
-  const { nombre, edad, raza, sexo, peso, observaciones } = req.body;
-
   try {
-    const [rows] = await pool.execute(
-      `
-      SELECT id
-      FROM pets
-      WHERE id = ?
-      LIMIT 1
-      `,
-      [id]
-    );
+    const { id } = req.params;
+    const {
+      nombre,
+      edad,
+      raza,
+      sexo,
+      peso,
+      observaciones,
+    } = req.body;
 
-    if (rows.length === 0) {
+    const pet = await prisma.pet.findUnique({
+      where: {
+        id,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!pet) {
       return res.status(404).json({
-        message: "Mascota no encontrada",
+        message: "Mascota no encontrada.",
       });
     }
 
-    let sexValue = null;
-    if (sexo === "Macho" || sexo === "MALE") sexValue = "MALE";
-    if (sexo === "Hembra" || sexo === "FEMALE") sexValue = "FEMALE";
-    if (!sexValue) sexValue = "UNKNOWN";
+    const cleanNombre = String(nombre || "").trim();
+    const cleanRaza = String(raza || "").trim();
+    const cleanSexo = String(sexo || "").trim();
+    const cleanObservaciones = String(observaciones || "").trim();
 
-    await pool.execute(
-      `
-      UPDATE pets
-      SET
-        name = ?,
-        breed = ?,
-        sex = ?,
-        age_years = ?,
-        weight_kg = ?,
-        weight_text = ?,
-        observations = ?,
-        updated_at = NOW()
-      WHERE id = ?
-      `,
-      [
-        nombre || null,
-        raza || null,
-        sexValue,
-        edad ? Number(edad) : null,
-        peso ? Number(peso) : null,
-        peso ? String(peso) : null,
-        observaciones || null,
+    const ageYears =
+      edad === "" || edad === null || edad === undefined
+        ? null
+        : Number.parseInt(edad, 10);
+
+    const weightKg =
+      peso === "" || peso === null || peso === undefined
+        ? null
+        : Number.parseFloat(peso);
+
+    if (!cleanNombre) {
+      return res.status(400).json({
+        message: "El nombre de la mascota es obligatorio.",
+      });
+    }
+
+    if (
+      ageYears !== null &&
+      (!Number.isInteger(ageYears) || ageYears < 0)
+    ) {
+      return res.status(400).json({
+        message: "La edad de la mascota no es válida.",
+      });
+    }
+
+    if (
+      weightKg !== null &&
+      (!Number.isFinite(weightKg) || weightKg <= 0)
+    ) {
+      return res.status(400).json({
+        message: "El peso de la mascota no es válido.",
+      });
+    }
+
+    let sexValue = "UNKNOWN";
+
+    if (
+      cleanSexo.toLowerCase() === "macho" ||
+      cleanSexo.toUpperCase() === "MALE"
+    ) {
+      sexValue = "MALE";
+    }
+
+    if (
+      cleanSexo.toLowerCase() === "hembra" ||
+      cleanSexo.toUpperCase() === "FEMALE"
+    ) {
+      sexValue = "FEMALE";
+    }
+
+    const updatedPet = await prisma.pet.update({
+      where: {
         id,
-      ]
-    );
+      },
+      data: {
+        name: cleanNombre,
+        breed: cleanRaza || null,
+        sex: sexValue,
+        ageYears,
+        weightKg,
+        weightText: weightKg === null ? null : String(peso),
+        observations: cleanObservaciones || null,
+      },
+      select: {
+        id: true,
+        name: true,
+        breed: true,
+        sex: true,
+        ageYears: true,
+        weightKg: true,
+        observations: true,
+      },
+    });
 
     return res.json({
       message: "Mascota actualizada correctamente.",
+      pet: {
+        id: updatedPet.id,
+        nombre: updatedPet.name,
+        raza: updatedPet.breed,
+        sexo: updatedPet.sex,
+        edad: updatedPet.ageYears,
+        peso:
+          updatedPet.weightKg === null
+            ? null
+            : Number(updatedPet.weightKg),
+        observaciones: updatedPet.observations,
+      },
     });
   } catch (error) {
-    console.error("Error updating pet:", error);
+    console.error("Error updating pet with Prisma:", error);
+
     return res.status(500).json({
       message: "Error actualizando mascota.",
     });
   }
 });
 
-
 // =============================
-// GET DOCTORS
+// GET DOCTORS - PRISMA / NEON
 // =============================
 app.get("/api/doctores", requireAuth, async (req, res) => {
   try {
-    const [rows] = await pool.execute(
-      `
-      SELECT
-        id,
-        user_id,
-        full_name AS nombre,
-        specialty,
-        license_number,
-        created_at,
-        updated_at
-      FROM doctors
-      WHERE deleted_at IS NULL
-      ORDER BY full_name
-      `
-    );
-
-    return res.json(rows);
-  } catch (error) {
-    console.error("Error loading doctors:", error);
-
-    return res.status(500).json({
-      message: "Internal server error",
+    const users = await prisma.user.findMany({
+      where: {
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        username: true,
+        role: true,
+      },
+      orderBy: {
+        username: "asc",
+      },
     });
-  }
-});
 
-// =============================
-// GET TIPOS DE CONSULTA
-// =============================
-app.get("/api/tipos-consulta", requireAuth, async (req, res) => {
-  try {
-    const [rows] = await pool.execute(
-      `
-      SELECT
-        id,
-        codigo,
-        nombre
-      FROM tipos_consulta
-      WHERE deleted_at IS NULL
-      ORDER BY nombre
-      `
-    );
+    const allowedRoles = new Set([
+      "ADMIN",
+      "DOCTOR",
+      "VETERINARIO",
+      "VETERINARIAN",
+      "VET",
+    ]);
 
-    return res.json(rows);
+    const doctors = users
+      .filter((user) =>
+        allowedRoles.has(String(user.role || "").trim().toUpperCase())
+      )
+      .map((user) => ({
+        id: user.id,
+        nombre: user.username,
+        role: user.role,
+      }));
+
+    return res.json(doctors);
   } catch (error) {
-    console.error("Error loading tipos_consulta:", error);
+    console.error("Error loading doctors with Prisma:", error);
 
     return res.status(500).json({
-      message: "Error interno al cargar tipos de consulta.",
-      error: error.message,
-      sqlMessage: error.sqlMessage || null,
+      message: "Error interno al cargar los doctores.",
+      detail: error.message,
       code: error.code || null,
     });
   }
 });
 
 // =============================
-// STATS
+// GET CONSULTATION TYPES
+// =============================
+app.get("/api/tipos-consulta", requireAuth, async (req, res) => {
+  const tipos = [
+    {
+      id: "gen",
+      codigo: "gen",
+      nombre: "Consulta general",
+    },
+    {
+      id: "rou",
+      codigo: "rou",
+      nombre: "Control rutinario",
+    },
+    {
+      id: "vac",
+      codigo: "vac",
+      nombre: "Vacunación",
+    },
+    {
+      id: "ill",
+      codigo: "ill",
+      nombre: "Enfermedad",
+    },
+    {
+      id: "eme",
+      codigo: "eme",
+      nombre: "Emergencia",
+    },
+    {
+      id: "sur",
+      codigo: "sur",
+      nombre: "Cirugía",
+    },
+    {
+      id: "med",
+      codigo: "med",
+      nombre: "Medicación",
+    },
+    {
+      id: "den",
+      codigo: "den",
+      nombre: "Consulta dental",
+    },
+    {
+      id: "emb",
+      codigo: "emb",
+      nombre: "Embarazo",
+    },
+  ];
+
+  return res.json(tipos);
+});
+
+// =============================
+// STATS - PRISMA / NEON
 // =============================
 app.get("/api/stats", requireAuth, async (req, res) => {
   try {
-    const [[clientesRow]] = await pool.execute(`
-      SELECT COUNT(*) AS total
-      FROM clients
-      WHERE deleted_at IS NULL
-    `);
+    const limiteAlertas = new Date();
+    limiteAlertas.setDate(limiteAlertas.getDate() + 3);
 
-    const [[mascotasRow]] = await pool.execute(`
-      SELECT COUNT(*) AS total
-      FROM pets
-      WHERE deleted_at IS NULL
-    `);
+    const [clientes, mascotas, consultas, alertas] = await Promise.all([
+      prisma.client.count({
+        where: {
+          deletedAt: null,
+        },
+      }),
 
-    const [[consultasRow]] = await pool.execute(`
-      SELECT COUNT(*) AS total
-      FROM consultas
-      WHERE deleted_at IS NULL
-    `);
+      prisma.pet.count({
+        where: {
+          deletedAt: null,
+        },
+      }),
 
-    const [[alertasRow]] = await pool.execute(`
-      SELECT COUNT(*) AS total
-      FROM consultas
-      WHERE deleted_at IS NULL
-        AND (
-          (proxima_cita IS NOT NULL AND proxima_cita <= DATE_ADD(CURDATE(), INTERVAL 3 DAY))
-          OR estado = 'seguimiento'
-        )
-    `);
+      prisma.consultation.count({
+        where: {
+          deletedAt: null,
+        },
+      }),
+
+      prisma.consultation.count({
+        where: {
+          deletedAt: null,
+          OR: [
+            {
+              proximaCita: {
+                not: null,
+                lte: limiteAlertas,
+              },
+            },
+            {
+              estado: "seguimiento",
+            },
+          ],
+        },
+      }),
+    ]);
 
     return res.json({
-      clientes: Number(clientesRow.total || 0),
-      mascotas: Number(mascotasRow.total || 0),
-      consultas: Number(consultasRow.total || 0),
-      alertas: Number(alertasRow.total || 0),
+      clientes,
+      mascotas,
+      consultas,
+      alertas,
     });
   } catch (error) {
-    console.error("Error loading stats:", error);
+    console.error("Error loading stats with Prisma:", error);
 
     return res.status(500).json({
       message: "Error interno al cargar estadísticas.",
       error: error.message,
-      sqlMessage: error.sqlMessage || null,
-      code: error.code || null,
     });
   }
 });
@@ -1176,316 +1471,407 @@ app.put("/api/alertas/:id/quitar", requireAuth, async (req, res) => {
   }
 });
 
-// =============================
-// REGISTER CONSULTA
-// =============================
-app.post("/api/consultas", requireAuth, upload.array("adjuntos", 10), async (req, res) => {
-  let connection;
+// ===============================================
+// CREATE CONSULTATION - PRISMA / NEON / CLOUDINARY
+// ===============================================
+app.post(
+  "/api/consultas",
+  requireAuth,
+  upload.array("adjuntos", 10),
+  async (req, res) => {
+    const uploadedAssets = [];
 
-  try {
-    connection = await pool.getConnection();
-    await connection.beginTransaction();
+    const cleanText = (value) => {
+      const text = String(value ?? "").trim();
+      return text || null;
+    };
 
-    const {
-      pet_id,
-      client_id,
-      doctor_id,
-      fecha,
-      hora,
-      motivo,
-      diagnostico,
-      observaciones,
-      estado,
-      gravedad,
-      proxima_cita,
-      motivo_seguimiento,
-      notas_medicacion,
-      notas_analisis,
-      lote_vacuna,
-      weight,
-      temp,
-      hr,
-      rr,
-      bp,
-      spo2,
-      meses_gestacion,
-      cantidad_crias,
-      riesgo_embarazo,
-      tipo_parto,
-      fecha_probable_parto,
-      observaciones_embarazo,
-    } = req.body;
+    const parseInteger = (value) => {
+      if (value === "" || value === null || value === undefined) {
+        return null;
+      }
 
-    const medicaciones = parseJsonArray(req.body.medicaciones);
-    const analisis = parseJsonArray(req.body.analisis);
-    const vacunas = parseJsonArray(req.body.vacunas);
-    const tiposConsulta = parseJsonArray(req.body.tipos_consulta);
+      const number = Number.parseInt(value, 10);
+      return Number.isInteger(number) ? number : null;
+    };
 
-    if (!pet_id || !client_id || !doctor_id || !fecha || !motivo) {
-      await connection.rollback();
-      return res.status(400).json({
-        message: "Faltan campos obligatorios para guardar la consulta.",
-      });
-    }
+    const parseDecimal = (value) => {
+      if (value === "" || value === null || value === undefined) {
+        return null;
+      }
 
-    const consultaId = crypto.randomUUID();
-    const fechaHora = hora ? `${fecha} ${hora}:00` : `${fecha} 00:00:00`;
+      const number = Number(value);
+      return Number.isFinite(number) ? String(number) : null;
+    };
 
-    const peso = toNullableNumber(weight);
-    const temperatura = toNullableNumber(temp);
-    const frecuenciaCardiaca = toNullableNumber(hr);
-    const frecuenciaRespiratoria = toNullableNumber(rr);
-    const presionArterial = bp ? String(bp) : null;
-    const saturacionOxigeno = toNullableNumber(spo2);
+    const parseDateValue = (value) => {
+      if (!value) return null;
 
-    await connection.execute(
-`   INSERT INTO consultas (
-    id,
-    pet_id,
-    client_id,
-    doctor_id,
-    fecha,
-    motivo,
-    diagnostico,
-    observaciones,
-    estado,
-    gravedad,
-    proxima_cita,
-    motivo_seguimiento,
-    peso,
-    temperatura,
-    frecuencia_cardiaca,
-    frecuencia_respiratoria,
-    presion_arterial,
-    saturacion_oxigeno,
-    atraso_notificado_at,
-    recordatorio_manana_enviado_at,
-    deleted_at,
-    created_at,
-    updated_at
-  )
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NOW(), NOW())
-  `,
-[
+      const text = String(value).trim();
 
-        consultaId,
+      const normalized =
+        /^\d{4}-\d{2}-\d{2}$/.test(text)
+          ? `${text}T00:00:00`
+          : text.includes(" ")
+            ? text.replace(" ", "T")
+            : text;
+
+      const date = new Date(normalized);
+
+      return Number.isNaN(date.getTime()) ? null : date;
+    };
+
+    const parseVisitDate = (dateValue, timeValue) => {
+      if (!dateValue) return null;
+
+      const cleanDate = String(dateValue).trim();
+      const cleanTime = String(timeValue || "").trim();
+
+      if (cleanDate.includes("T") || cleanDate.includes(" ")) {
+        return parseDateValue(cleanDate);
+      }
+
+      let completeTime = "00:00:00";
+
+      if (cleanTime) {
+        completeTime =
+          /^\d{2}:\d{2}$/.test(cleanTime)
+            ? `${cleanTime}:00`
+            : cleanTime;
+      }
+
+      return parseDateValue(`${cleanDate}T${completeTime}`);
+    };
+
+    try {
+      const {
         pet_id,
         client_id,
         doctor_id,
-        fechaHora,
+        fecha,
+        hora,
         motivo,
-        diagnostico || null,
-        observaciones || null,
-        estado || "abierta",
-        gravedad || "moderada",
-        proxima_cita || null,
-        motivo_seguimiento || null,
-        peso,
-        temperatura,
-        frecuenciaCardiaca,
-        frecuenciaRespiratoria,
-        presionArterial,
-        saturacionOxigeno,
-      ]
-    );
+        diagnostico,
+        observaciones,
+        estado,
+        gravedad,
+        proxima_cita,
+        motivo_seguimiento,
+        notas_medicacion,
+        notas_analisis,
+        lote_vacuna,
+        weight,
+        temp,
+        hr,
+        rr,
+        bp,
+        spo2,
+        meses_gestacion,
+        cantidad_crias,
+        riesgo_embarazo,
+        tipo_parto,
+        fecha_probable_parto,
+        observaciones_embarazo,
+      } = req.body;
 
-    if (Array.isArray(tiposConsulta) && tiposConsulta.length > 0) {
-      for (const tipoCodigo of tiposConsulta) {
-        const codigo = String(tipoCodigo || "").trim();
-        if (!codigo) continue;
+      const petId = cleanText(pet_id);
+      const clientId = cleanText(client_id);
+      const doctorInput = cleanText(doctor_id);
+      const motivoValue = cleanText(motivo);
+      const fechaHora = parseVisitDate(fecha, hora);
 
-        const [tipoRows] = await connection.execute(
-          `
-          SELECT id
-          FROM tipos_consulta
-          WHERE codigo = ?
-            AND deleted_at IS NULL
-          LIMIT 1
-          `,
-          [codigo]
-        );
+      if (
+        !petId ||
+        !clientId ||
+        !doctorInput ||
+        !fechaHora ||
+        !motivoValue
+      ) {
+        return res.status(400).json({
+          message:
+            "Faltan campos obligatorios o la fecha de la consulta no es válida.",
+        });
+      }
 
-        if (tipoRows.length === 0) continue;
+      const tiposConsulta = [
+        ...new Set(
+          parseJsonArray(req.body.tipos_consulta)
+            .map((item) => String(item || "").trim())
+            .filter(Boolean)
+        ),
+      ];
 
-        const tipoId = tipoRows[0].id;
+      const medicaciones = parseJsonArray(req.body.medicaciones)
+        .map((item) => String(item || "").trim())
+        .filter(Boolean);
 
-        await connection.execute(
-          `
-          INSERT INTO consulta_tipos (
-            id,
-            consulta_id,
-            tipo_consulta_id,
-            deleted_at,
-            created_at,
-            updated_at
+      const analisis = parseJsonArray(req.body.analisis)
+        .map((item) => String(item || "").trim())
+        .filter(Boolean);
+
+      const vacunas = parseJsonArray(req.body.vacunas)
+        .map((item) => String(item || "").trim())
+        .filter(Boolean);
+
+      const [pet, client, doctor] = await Promise.all([
+        prisma.pet.findFirst({
+          where: {
+            id: petId,
+            deletedAt: null,
+          },
+          select: {
+            id: true,
+            clientId: true,
+          },
+        }),
+
+        prisma.client.findFirst({
+          where: {
+            id: clientId,
+            deletedAt: null,
+          },
+          select: {
+            id: true,
+          },
+        }),
+
+        prisma.user.findFirst({
+          where: {
+            deletedAt: null,
+            OR: [
+              {
+                id: doctorInput,
+              },
+              {
+                username: doctorInput,
+              },
+            ],
+          },
+          select: {
+            id: true,
+            username: true,
+          },
+        }),
+      ]);
+
+      if (!pet) {
+        return res.status(404).json({
+          message: "La mascota seleccionada no existe o está inactiva.",
+        });
+      }
+
+      if (!client) {
+        return res.status(404).json({
+          message: "El usuario seleccionado no existe o está inactivo.",
+        });
+      }
+
+      if (pet.clientId !== client.id) {
+        return res.status(400).json({
+          message:
+            "La mascota seleccionada no pertenece al usuario indicado.",
+        });
+      }
+
+      if (!doctor) {
+        return res.status(404).json({
+          message: "El doctor seleccionado no existe.",
+        });
+      }
+
+      /*
+       * Primero se suben los archivos a Cloudinary.
+       * Todavía no se abre la transacción de PostgreSQL.
+       */
+      if (Array.isArray(req.files)) {
+        for (const file of req.files) {
+          const result = await uploadBufferToCloudinary(file);
+
+          uploadedAssets.push({
+            publicId: result.public_id,
+            resourceType: result.resource_type || "image",
+            secureUrl: result.secure_url,
+            file,
+          });
+        }
+      }
+
+      /*
+       * La consulta y todos sus registros relacionados
+       * se guardan de forma atómica en Neon.
+       */
+      const consultation = await prisma.$transaction(async (tx) => {
+        return tx.consultation.create({
+          data: {
+            petId: pet.id,
+            clientId: client.id,
+            doctorId: doctor.id,
+
+            fecha: fechaHora,
+            motivo: motivoValue,
+            diagnostico: cleanText(diagnostico),
+            observaciones: cleanText(observaciones),
+
+            estado: cleanText(estado) || "abierta",
+            gravedad: cleanText(gravedad) || "moderada",
+
+            proximaCita: parseDateValue(proxima_cita),
+            motivoSeguimiento: cleanText(motivo_seguimiento),
+
+            peso: parseDecimal(weight),
+            temperatura: parseDecimal(temp),
+            frecuenciaCardiaca: parseInteger(hr),
+            frecuenciaRespiratoria: parseInteger(rr),
+            presionArterial: cleanText(bp),
+            saturacionOxigeno: parseInteger(spo2),
+
+            types:
+              tiposConsulta.length > 0
+                ? {
+                    create: tiposConsulta.map((codigo) => ({
+                      tipoConsultaId: codigo,
+                    })),
+                  }
+                : undefined,
+
+            pregnancy: tiposConsulta.includes("emb")
+              ? {
+                  create: {
+                    mesesGestacion: parseInteger(meses_gestacion),
+                    cantidadCrias: parseInteger(cantidad_crias),
+                    riesgo: cleanText(riesgo_embarazo) || "bajo",
+                    tipoParto: cleanText(tipo_parto),
+                    fechaProbableParto:
+                      parseDateValue(fecha_probable_parto),
+                    observacionesEmbarazo:
+                      cleanText(observaciones_embarazo),
+                  },
+                }
+              : undefined,
+
+            medications:
+              medicaciones.length > 0
+                ? {
+                    create: medicaciones.map((medicamento) => ({
+                      medicamento,
+                      indicaciones: cleanText(notas_medicacion),
+                    })),
+                  }
+                : undefined,
+
+            analyses:
+              analisis.length > 0
+                ? {
+                    create: analisis.map((analisisItem) => ({
+                      analisis: analisisItem,
+                      resultadoObservacion:
+                        cleanText(notas_analisis),
+                    })),
+                  }
+                : undefined,
+
+            vaccinations:
+              vacunas.length > 0
+                ? {
+                    create: vacunas.map((vacuna) => ({
+                      vacuna,
+                      loteObservaciones: cleanText(lote_vacuna),
+                    })),
+                  }
+                : undefined,
+
+            attachments:
+              uploadedAssets.length > 0
+                ? {
+                    create: uploadedAssets.map((asset) => ({
+                      nombreArchivo: asset.file.originalname,
+                      rutaArchivo: asset.secureUrl,
+                      tipoArchivo: asset.file.mimetype || null,
+                      tamanoBytes: asset.file.size || null,
+                      storageProvider: "cloudinary",
+                      storageKey: asset.publicId,
+                      publicUrl: asset.secureUrl,
+                    })),
+                  }
+                : undefined,
+          },
+
+          select: {
+            id: true,
+            fecha: true,
+            petId: true,
+            clientId: true,
+            doctorId: true,
+            types: {
+              select: {
+                tipoConsultaId: true,
+              },
+            },
+            attachments: {
+              select: {
+                nombreArchivo: true,
+                publicUrl: true,
+                storageKey: true,
+              },
+            },
+          },
+        });
+      });
+
+      return res.status(201).json({
+        message: "Consulta guardada correctamente.",
+        consulta: {
+          id: consultation.id,
+          pet_id: consultation.petId,
+          client_id: consultation.clientId,
+          doctor_id: consultation.doctorId,
+          fecha: consultation.fecha,
+          tipos_consulta: consultation.types.map(
+            (tipo) => tipo.tipoConsultaId
+          ),
+          adjuntos: consultation.attachments.map((attachment) => ({
+            nombre_archivo: attachment.nombreArchivo,
+            public_url: attachment.publicUrl,
+            storage_key: attachment.storageKey,
+          })),
+        },
+      });
+    } catch (error) {
+      /*
+       * Si Cloudinary recibió archivos, pero PostgreSQL falló,
+       * se eliminan esos archivos para evitar recursos huérfanos.
+       */
+      if (uploadedAssets.length > 0) {
+        await Promise.allSettled(
+          uploadedAssets.map((asset) =>
+            cloudinary.uploader.destroy(asset.publicId, {
+              resource_type: asset.resourceType,
+            })
           )
-          VALUES (?, ?, ?, NULL, NOW(), NOW())
-          `,
-          [crypto.randomUUID(), consultaId, tipoId]
         );
       }
-    }
 
-    if (Array.isArray(tiposConsulta) && tiposConsulta.includes("emb")) {
-      await connection.execute(
-        `
-        INSERT INTO consulta_embarazo (
-          id,
-          consulta_id,
-          meses_gestacion,
-          cantidad_crias,
-          riesgo,
-          tipo_parto,
-          fecha_probable_parto,
-          observaciones_embarazo,
-          deleted_at,
-          created_at,
-          updated_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NOW(), NOW())
-        `,
-        [
-          crypto.randomUUID(),
-          consultaId,
-          meses_gestacion ? Number(meses_gestacion) : null,
-          cantidad_crias ? Number(cantidad_crias) : null,
-          riesgo_embarazo || "bajo",
-          tipo_parto || null,
-          fecha_probable_parto || null,
-          observaciones_embarazo || null,
-        ]
+      console.error(
+        "Error saving consultation with Prisma and Cloudinary:",
+        error
       );
-    }
 
-    if (Array.isArray(medicaciones) && medicaciones.length > 0) {
-      for (const medicamento of medicaciones) {
-        const valor = String(medicamento || "").trim();
-        if (!valor) continue;
-
-        await connection.execute(
-          `
-          INSERT INTO consulta_medicaciones (
-            id,
-            consulta_id,
-            medicamento,
-            indicaciones,
-            deleted_at,
-            created_at,
-            updated_at
-          )
-          VALUES (?, ?, ?, ?, NULL, NOW(), NOW())
-          `,
-          [crypto.randomUUID(), consultaId, valor, notas_medicacion || null]
-        );
+      if (error.code === "P2003") {
+        return res.status(400).json({
+          message:
+            "La mascota, el usuario o el doctor indicado no existe.",
+          code: error.code,
+        });
       }
-    }
 
-    if (Array.isArray(analisis) && analisis.length > 0) {
-      for (const analisisItem of analisis) {
-        const valor = String(analisisItem || "").trim();
-        if (!valor) continue;
-
-        await connection.execute(
-          `
-          INSERT INTO consulta_analisis (
-            id,
-            consulta_id,
-            analisis,
-            resultado_observacion,
-            deleted_at,
-            created_at,
-            updated_at
-          )
-          VALUES (?, ?, ?, ?, NULL, NOW(), NOW())
-          `,
-          [crypto.randomUUID(), consultaId, valor, notas_analisis || null]
-        );
-      }
-    }
-
-    if (Array.isArray(vacunas) && vacunas.length > 0) {
-      for (const vacuna of vacunas) {
-        const valor = String(vacuna || "").trim();
-        if (!valor) continue;
-
-        await connection.execute(
-          `
-          INSERT INTO consulta_vacunas (
-            id,
-            consulta_id,
-            vacuna,
-            lote_observaciones,
-            deleted_at,
-            created_at,
-            updated_at
-          )
-          VALUES (?, ?, ?, ?, NULL, NOW(), NOW())
-          `,
-          [crypto.randomUUID(), consultaId, valor, lote_vacuna || null]
-        );
-      }
-    }
-
-    if (Array.isArray(req.files) && req.files.length > 0) {
-      for (const file of req.files) {
-        const publicPath = `/uploads/consultas/${file.filename}`;
-
-        await connection.execute(
-          `
-          INSERT INTO consulta_adjuntos (
-            id,
-            consulta_id,
-            nombre_archivo,
-            ruta_archivo,
-            tipo_archivo,
-            tamano_bytes,
-            deleted_at,
-            created_at,
-            updated_at
-          )
-          VALUES (?, ?, ?, ?, ?, ?, NULL, NOW(), NOW())
-          `,
-          [
-            crypto.randomUUID(),
-            consultaId,
-            file.originalname,
-            publicPath,
-            file.mimetype || null,
-            file.size || null,
-          ]
-        );
-      }
-    }
-
-    await connection.commit();
-
-    return res.status(201).json({
-      message: "Consulta guardada correctamente.",
-      consulta: {
-        id: consultaId,
-        tipos_consulta: tiposConsulta,
-      },
-    });
-  } catch (error) {
-    if (connection) {
-      await connection.rollback();
-    }
-
-    console.error("Error saving consulta:", error);
-
-    return res.status(500).json({
-      message: "Error interno al guardar la consulta.",
-      error: error.message,
-      sqlMessage: error.sqlMessage || null,
-      code: error.code || null,
-    });
-  } finally {
-    if (connection) {
-      connection.release();
+      return res.status(500).json({
+        message: "Error interno al guardar la consulta.",
+        detail: error.message,
+        code: error.code || null,
+      });
     }
   }
-});
-
+);
 // =============================
 // CONSULTATION ID
 // =============================
@@ -1524,10 +1910,6 @@ app.get("/api/consultas/:id", requireAuth, async (req, res) => {
       `,
       [id]
     );
-
-
-
-    
 
     if (consultas.length === 0) {
       return res.status(404).json({
@@ -1631,7 +2013,6 @@ app.put("/api/consultas/:id", requireAuth, async (req, res) => {
     pet_id,
     client_id,
     fecha,
-
     motivo,
     diagnostico,
     observaciones,
@@ -1664,7 +2045,6 @@ app.put("/api/consultas/:id", requireAuth, async (req, res) => {
         pet_id = ?,
         client_id = ?,
         fecha = ?,
-        
         motivo = ?,
         diagnostico = ?,
         observaciones = ?,
@@ -1680,7 +2060,6 @@ app.put("/api/consultas/:id", requireAuth, async (req, res) => {
         pet_id || null,
         client_id || null,
         fecha || null,
-        
         motivo || null,
         diagnostico || null,
         observaciones || null,
@@ -1741,143 +2120,210 @@ app.delete("/api/consultas/:id", requireAuth, async (req, res) => {
   }
 });
 
-// =============================
-// GET PET CLINICAL HISTORY
-// =============================
-app.get("/api/mascotas/:mascotaId/consultas", requireAuth, async (req, res) => {
-  try {
-    const { mascotaId } = req.params;
+// ==========================================
+// GET PET CLINICAL HISTORY - PRISMA / NEON
+// ==========================================
+app.get(
+  "/api/mascotas/:mascotaId/consultas",
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { mascotaId } = req.params;
 
-    if (!mascotaId) {
-      return res.status(400).json({
-        message: "ID de mascota es requerido.",
+      if (!mascotaId) {
+        return res.status(400).json({
+          message: "ID de mascota es requerido.",
+        });
+      }
+
+      const pet = await prisma.pet.findUnique({
+        where: {
+          id: mascotaId,
+        },
+        select: {
+          id: true,
+        },
       });
-    }
 
-    const [consultas] = await pool.execute(
-      `
-      SELECT
-        c.id,
-        c.fecha AS visit_at,
-        c.motivo AS reason,
-        c.diagnostico AS diagnosis,
-        c.observaciones AS notes,
-        c.estado,
-        c.gravedad,
-        c.proxima_cita,
-        c.motivo_seguimiento,
-        c.peso,
-        c.temperatura,
-        c.frecuencia_cardiaca,
-        c.frecuencia_respiratoria,
-        c.presion_arterial,
-        c.saturacion_oxigeno,
-        d.full_name AS doctor
-      FROM consultas c
-      LEFT JOIN doctors d ON d.id = c.doctor_id
-      WHERE c.pet_id = ?
-        AND c.deleted_at IS NULL
-      ORDER BY c.fecha DESC, c.created_at DESC
-      `,
-      [mascotaId]
-    );
+      if (!pet) {
+        return res.status(404).json({
+          message: "Mascota no encontrada.",
+        });
+      }
 
-    const resultado = [];
+      const consultas = await prisma.consultation.findMany({
+        where: {
+          petId: mascotaId,
+          deletedAt: null,
+        },
+        include: {
+          doctor: {
+            select: {
+              username: true,
+            },
+          },
 
-    for (const consulta of consultas) {
-      const [tipos] = await pool.execute(
-        `
-        SELECT
-          tc.id,
-          tc.codigo,
-          tc.nombre
-        FROM consulta_tipos ct
-        INNER JOIN tipos_consulta tc
-          ON tc.id = ct.tipo_consulta_id
-        WHERE ct.consulta_id = ?
-          AND ct.deleted_at IS NULL
-          AND tc.deleted_at IS NULL
-        ORDER BY tc.nombre ASC
-        `,
-        [consulta.id]
-      );
+          types: {
+            where: {
+              deletedAt: null,
+            },
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
 
-      const [medicaciones] = await pool.execute(
-        `
-        SELECT medicamento, indicaciones
-        FROM consulta_medicaciones
-        WHERE consulta_id = ?
-          AND deleted_at IS NULL
-        ORDER BY created_at ASC
-        `,
-        [consulta.id]
-      );
+          medications: {
+            where: {
+              deletedAt: null,
+            },
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
 
-      const [analisis] = await pool.execute(
-        `
-        SELECT analisis, resultado_observacion
-        FROM consulta_analisis
-        WHERE consulta_id = ?
-          AND deleted_at IS NULL
-        ORDER BY created_at ASC
-        `,
-        [consulta.id]
-      );
+          analyses: {
+            where: {
+              deletedAt: null,
+            },
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
 
-      const [vacunas] = await pool.execute(
-        `
-        SELECT vacuna, lote_observaciones
-        FROM consulta_vacunas
-        WHERE consulta_id = ?
-          AND deleted_at IS NULL
-        ORDER BY created_at ASC
-        `,
-        [consulta.id]
-      );
+          vaccinations: {
+            where: {
+              deletedAt: null,
+            },
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
 
-      const [adjuntos] = await pool.execute(
-        `
-        SELECT nombre_archivo, ruta_archivo, tipo_archivo, tamano_bytes
-        FROM consulta_adjuntos
-        WHERE consulta_id = ?
-          AND deleted_at IS NULL
-        ORDER BY created_at ASC
-        `,
-        [consulta.id]
-      );
+          attachments: {
+            where: {
+              deletedAt: null,
+            },
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+        },
+        orderBy: [
+          {
+            fecha: "desc",
+          },
+          {
+            createdAt: "desc",
+          },
+        ],
+      });
 
-      resultado.push({
-        ...consulta,
-        tipos_consulta: tipos.map((t) => t.codigo),
-        tipos_consulta_detalle: tipos,
+      const resultado = consultas.map((consulta) => ({
+        id: consulta.id,
+
+        visit_at: consulta.fecha,
+        fecha: consulta.fecha,
+
+        reason: consulta.motivo,
+        motivo: consulta.motivo,
+
+        diagnosis: consulta.diagnostico,
+        diagnostico: consulta.diagnostico,
+
+        notes: consulta.observaciones,
+        observaciones: consulta.observaciones,
+
+        estado: consulta.estado,
+        gravedad: consulta.gravedad,
+
+        proxima_cita: consulta.proximaCita,
+        motivo_seguimiento: consulta.motivoSeguimiento,
+
+        peso:
+          consulta.peso === null
+            ? null
+            : Number(consulta.peso),
+
+        temperatura:
+          consulta.temperatura === null
+            ? null
+            : Number(consulta.temperatura),
+
+        frecuencia_cardiaca: consulta.frecuenciaCardiaca,
+        frecuencia_respiratoria: consulta.frecuenciaRespiratoria,
+        presion_arterial: consulta.presionArterial,
+        saturacion_oxigeno: consulta.saturacionOxigeno,
+
+        doctor: consulta.doctor?.username || null,
+
+        tipos_consulta: consulta.types.map(
+          (tipo) => tipo.tipoConsultaId
+        ),
+
+        tipos_consulta_detalle: consulta.types.map((tipo) => ({
+          id: tipo.id,
+          codigo: tipo.tipoConsultaId,
+          nombre: null,
+        })),
+
         treatment:
-          medicaciones.length > 0
-            ? medicaciones.map((m) => m.medicamento).join(", ")
+          consulta.medications.length > 0
+            ? consulta.medications
+                .map((medicacion) => medicacion.medicamento)
+                .join(", ")
             : null,
-        medicaciones,
-        analisis,
-        vacunas,
-        adjuntos,
+
+        medicaciones: consulta.medications.map((medicacion) => ({
+          medicamento: medicacion.medicamento,
+          indicaciones: medicacion.indicaciones,
+        })),
+
+        analisis: consulta.analyses.map((analisis) => ({
+          analisis: analisis.analisis,
+          resultado_observacion:
+            analisis.resultadoObservacion,
+        })),
+
+        vacunas: consulta.vaccinations.map((vacuna) => ({
+          vacuna: vacuna.vacuna,
+          lote_observaciones: vacuna.loteObservaciones,
+        })),
+
+        adjuntos: consulta.attachments.map((adjunto) => ({
+          nombre_archivo: adjunto.nombreArchivo,
+
+          ruta_archivo:
+            adjunto.publicUrl || adjunto.rutaArchivo,
+
+          tipo_archivo: adjunto.tipoArchivo,
+          tamano_bytes: adjunto.tamanoBytes,
+
+          storage_provider: adjunto.storageProvider,
+          storage_key: adjunto.storageKey,
+          public_url: adjunto.publicUrl,
+        })),
+      }));
+
+      return res.json(resultado);
+    } catch (error) {
+      console.error(
+        "Error loading clinical history with Prisma:",
+        error
+      );
+
+      return res.status(500).json({
+        message: "Error interno del servidor.",
+        detail: error.message,
+        code: error.code || null,
       });
     }
-
-    return res.json(resultado);
-  } catch (error) {
-    console.error("Error loading clinical history:", error);
-
-    return res.status(500).json({
-      message: "Internal server error",
-      error: error.message,
-      sqlMessage: error.sqlMessage || null,
-      code: error.code || null,
-    });
   }
-});
+);
 
 // =============================
 // REGISTER USER
 // =============================
-app.post("/api/auth/register", requireAuth, async (req, res) => {
+app.post("/api/auth/register", requireAuth, requireAdmin, async (req, res) => {
   try {
     const { username, password, role } = req.body;
 
@@ -1959,50 +2405,65 @@ app.post("/api/auth/register", requireAuth, async (req, res) => {
     });
   }
 });
-
 // =============================
-// LOGIN USER
+// LOGIN USER - PRISMA / NEON
 // =============================
 app.post("/api/auth/login", authLimiter, async (req, res) => {
   try {
     const { username, password } = req.body;
 
-    if (!username || !password) {
+    const cleanUsername = String(username || "").trim();
+    const cleanPassword = String(password || "");
+
+    if (!cleanUsername || !cleanPassword) {
       return res.status(400).json({
         message: "Nombre de usuario y contraseña son requeridos.",
       });
     }
 
-    const [rows] = await pool.execute(
-      `
-      SELECT id, username, password_hash, role
-      FROM users
-      WHERE username = ?
-        AND deleted_at IS NULL
-      LIMIT 1
-      `,
-      [username]
-    );
+    const user = await prisma.user.findFirst({
+      where: {
+        username: {
+          equals: cleanUsername,
+          mode: "insensitive",
+        },
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        username: true,
+        passwordHash: true,
+        role: true,
+      },
+    });
 
-    if (rows.length === 0) {
+    if (!user) {
       return res.status(401).json({
         message: "Usuario o contraseña incorrectos.",
       });
     }
 
-    const user = rows[0];
-    const valid = await bcrypt.compare(password, user.password_hash);
+    const validPassword = await bcrypt.compare(
+      cleanPassword,
+      user.passwordHash
+    );
 
-    if (!valid) {
+    if (!validPassword) {
       return res.status(401).json({
         message: "Usuario o contraseña incorrectos.",
       });
     }
 
     const token = jwt.sign(
-      { id: user.id, username: user.username, role: user.role },
+      {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+      },
       process.env.JWT_SECRET,
-      { expiresIn: "8h" }
+      {
+        expiresIn: "8h",
+      }
     );
 
     return res.json({
@@ -2014,10 +2475,10 @@ app.post("/api/auth/login", authLimiter, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Login error:", error);
+    console.error("LOGIN PRISMA ERROR:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Error interno del servidor.",
     });
   }
 });
@@ -2062,64 +2523,12 @@ async function enviarCorreosConsultasAtrasadas() {
 
     for (const row of rows) {
       try {
-        const asunto = `Recordatorio de consulta atrasada - ${row.mascota_nombre}`;
-
-        const html = `
-<div style="font-family: Arial; padding:20px;">
-
-  <div style="text-align:center; margin-bottom:20px;">
-    <img src="cid:logoVetcare" width="120" />
-  </div>
-
-  <h2 style="text-align:center;">VetCare</h2>
-
-  <p>Hola,</p>
-
-  <p>
-    La consulta o seguimiento de su mascota <strong>${row.mascota_nombre}</strong> está atrasada.
-  </p>
-
-  <div style="background:#f4e7c5; padding:15px; border-radius:8px;">
-    <p><strong>Motivo:</strong> ${row.motivo || "No especificado"}</p>
-    <p><strong>Fecha:</strong> ${formatDateForEmail(row.proxima_cita)}</p>
-  </div>
-
-  <p>Por favor comuníquese con la veterinaria para reagendar.</p>
-
-  <hr />
-
-  <p style="font-size:12px; color:gray;">
-    VetCare - Sistema automático
-  </p>
-
-</div>
-`;
-
-        await mailTransporter.sendMail({
-  from: process.env.MAIL_FROM,
-  to: row.cliente_correo,
-  subject: asunto,
-  html,
-  attachments: [
-    {
-      
-      filename: 'logo-vetcare.png',
-      path: path.join(__dirname, "../public/logo-vetcare.png"),
-      cid: 'logoVetcare'
-    }
-  ]
-});
-
-
-        await connection.execute(
-          `
-          UPDATE consultas
-          SET atraso_notificado_at = NOW(),
-              updated_at = NOW()
-          WHERE id = ?
-          `,
-          [row.id]
-        );
+        await enviarCorreoConsulta({
+          connection,
+          row,
+          tipo: "atrasada",
+          marcarNotificado: true,
+        });
 
         console.log(
           `Correo enviado por consulta atrasada. Consulta: ${row.id}, email: ${row.cliente_correo}`
@@ -2177,19 +2586,66 @@ app.post("/api/consultas/:id/enviar-recordatorio", requireAuth, async (req, res)
 
     const row = rows[0];
 
+    const html = `
+      <div style="font-family: Arial, Helvetica, sans-serif; background-color:#f5f7fa; padding:24px;">
+        <div style="max-width:600px; margin:0 auto; background:#ffffff; border-radius:14px; overflow:hidden; border:1px solid #e5e7eb;">
+
+          <div style="padding:28px 32px 10px; text-align:center;">
+            <img src="cid:logoVerde" width="72" alt="VetCare" style="display:block; margin:0 auto 12px;" />
+            <h1 style="margin:0; font-size:28px; color:#2a9d8f; font-weight:700;">VetCare</h1>
+            <p style="margin:8px 0 0; color:#6b7280; font-size:14px;">
+              Cuidado veterinario con seguimiento oportuno
+            </p>
+          </div>
+
+          <div style="padding:24px 32px 32px; color:#1f2937; line-height:1.6;">
+            <h2 style="margin:0 0 16px; font-size:22px; color:#111827; text-align:center;">
+              Recordatorio de consulta
+            </h2>
+
+            <p style="margin:0 0 16px;">
+              Estimado/a${row.cliente_nombre ? ` <strong>${row.cliente_nombre}</strong>` : ""},
+            </p>
+
+            <p style="margin:0 0 18px;">
+              Le recordamos la consulta programada para su mascota <strong>${row.mascota_nombre}</strong>.
+            </p>
+
+            <div style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:12px; padding:18px 20px; margin:20px 0;">
+              <p style="margin:0 0 10px;"><strong>Mascota:</strong> ${row.mascota_nombre}</p>
+              <p style="margin:0 0 10px;"><strong>Motivo de la consulta:</strong> ${row.motivo || "No especificado"}</p>
+              <p style="margin:0;"><strong>Fecha y hora:</strong> ${formatDateForEmail(row.proxima_cita)}</p>
+            </div>
+
+            <p style="margin:0 0 16px;">
+              Si necesita realizar algún cambio en la cita, le recomendamos comunicarse con nosotros con anticipación.
+            </p>
+
+            <p style="margin:0 0 16px;">
+              Gracias por confiar en VetCare. Será un placer atenderle.
+            </p>
+
+            <div style="margin-top:28px; padding-top:18px; border-top:1px solid #e5e7eb; font-size:13px; color:#6b7280;">
+              <p style="margin:0 0 6px;"><strong>VetCare</strong></p>
+              <p style="margin:0;">Este es un mensaje automático enviado desde nuestro sistema.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
     await mailTransporter.sendMail({
       from: process.env.MAIL_FROM,
       to: row.cliente_correo,
       subject: `Recordatorio de consulta - ${row.mascota_nombre}`,
-      html: `
-        <div style="font-family: Arial; padding:20px;">
-          <h2 style="color:#2c3e50;">🐾 VetCare</h2>
-          <p>Hola${row.cliente_nombre ? ` ${row.cliente_nombre}` : ""},</p>
-          <p>Le recordamos la consulta de su mascota <strong>${row.mascota_nombre}</strong>.</p>
-          <p><strong>Fecha:</strong> ${formatDateForEmail(row.proxima_cita)}</p>
-          <p>Gracias por confiar en nosotros.</p>
-        </div>
-      `,
+      html,
+      attachments: [
+        {
+          filename: "logo-verde.png",
+          path: path.join(__dirname, "../public/logo-verde.png"),
+          cid: "logoVerde",
+        },
+      ],
     });
 
     return res.json({
@@ -2205,19 +2661,32 @@ app.post("/api/consultas/:id/enviar-recordatorio", requireAuth, async (req, res)
     if (connection) connection.release();
   }
 });
-cron.schedule("*/10 * * * *", async () => {
-  console.log("Revisando consultas atrasadas y citas de mañana para enviar correos...");
-  await enviarCorreosConsultasAtrasadas();
-  await enviarCorreosConsultasManana();
-});
 
+const emailJobsEnabled = process.env.ENABLE_EMAIL_JOBS === "true";
+
+if (emailJobsEnabled) {
+  cron.schedule("*/10 * * * *", async () => {
+    console.log(
+      "Revisando consultas atrasadas y citas de mañana para enviar correos..."
+    );
+
+    await enviarCorreosConsultasAtrasadas();
+    await enviarCorreosConsultasManana();
+  });
+} else {
+  console.log(
+    "Tareas automáticas de correo desactivadas temporalmente."
+  );
+}
 // =============================
 // SERVER
 // =============================
 const PORT = process.env.PORT || 5000;
 
-enviarCorreosConsultasAtrasadas();
-enviarCorreosConsultasManana();
+if (emailJobsEnabled) {
+  enviarCorreosConsultasAtrasadas();
+  enviarCorreosConsultasManana();
+}
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
