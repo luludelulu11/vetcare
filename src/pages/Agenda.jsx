@@ -151,30 +151,91 @@ export default function Agenda() {
   };
 
   const confirmar = async (cita) => {
-    const inputOptions = doctores.reduce((acc, d) => {
-      acc[d.id] = d.nombre;
-      return acc;
-    }, {});
+    const escapeHtml = (s) =>
+      String(s ?? "").replace(/[&<>"']/g, (c) =>
+        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])
+      );
 
+    const doctorOptions = doctores
+      .map((d) => `<option value="${escapeHtml(d.id)}">${escapeHtml(d.nombre)}</option>`)
+      .join("");
+
+    const { value: formValues } = await Swal.fire({
+      title: "Confirmar cita",
+      html: `
+        <p style="margin:0 0 14px;font-size:14px;color:#555;">
+          ${escapeHtml(cita.servicio)} · ${escapeHtml(cita.mascotaNombre || "Mascota")}
+        </p>
+        <label style="display:block;text-align:left;font-size:12px;font-weight:600;margin:6px 2px 4px;">Fecha</label>
+        <input id="swal-fecha" type="date" class="swal2-input" style="margin:0 0 6px;width:100%;box-sizing:border-box;" value="${escapeHtml(cita.fecha || "")}">
+        <label style="display:block;text-align:left;font-size:12px;font-weight:600;margin:6px 2px 4px;">Hora</label>
+        <input id="swal-hora" type="time" class="swal2-input" style="margin:0 0 6px;width:100%;box-sizing:border-box;" value="${escapeHtml(cita.hora || "")}">
+        <label style="display:block;text-align:left;font-size:12px;font-weight:600;margin:6px 2px 4px;">Doctor (opcional)</label>
+        <select id="swal-doctor" class="swal2-select" style="margin:0;width:100%;box-sizing:border-box;">
+          <option value="">Sin asignar</option>
+          ${doctorOptions}
+        </select>
+        <p style="margin:12px 2px 0;font-size:12px;color:#888;text-align:left;">
+          Ajusta la fecha u hora si el horario solicitado no está disponible. El cliente recibirá un correo con la confirmación.
+        </p>
+      `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: "Confirmar cita",
+      cancelButtonText: "Volver",
+      confirmButtonColor: "#0f6e84",
+      preConfirm: () => {
+        const fecha = document.getElementById("swal-fecha").value;
+        const hora = document.getElementById("swal-hora").value;
+        if (!fecha || !hora) {
+          Swal.showValidationMessage("Selecciona fecha y hora.");
+          return false;
+        }
+        return {
+          fecha,
+          hora,
+          doctorId: document.getElementById("swal-doctor").value || undefined,
+        };
+      },
+    });
+    if (!formValues) return;
+
+    setBusyId(cita.id);
+    try {
+      await confirmarCita(cita.id, formValues);
+      await load();
+    } catch (e) {
+      Swal.fire({
+        title: "Error",
+        text: e.message,
+        icon: "error",
+        confirmButtonColor: "#0f6e84",
+      });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const cancelarConMotivo = async (cita, { title, confirmText }) => {
     const result = await Swal.fire({
-      title: "¿Confirmar esta cita?",
+      title,
       text: `${cita.servicio} · ${cita.mascotaNombre || "Mascota"} — ${formatFecha(
         cita.fecha
       )} ${cita.hora || ""}`,
-      icon: "question",
-      input: doctores.length > 0 ? "select" : undefined,
-      inputOptions,
-      inputPlaceholder: "Asignar doctor (opcional)",
+      icon: "warning",
+      input: "textarea",
+      inputPlaceholder: "Motivo (opcional) — se incluirá en el correo al cliente",
+      inputAttributes: { "aria-label": "Motivo" },
       showCancelButton: true,
-      confirmButtonText: "Confirmar",
+      confirmButtonText: confirmText,
       cancelButtonText: "Volver",
-      confirmButtonColor: "#0f6e84",
+      confirmButtonColor: "#d1584a",
     });
     if (!result.isConfirmed) return;
 
     setBusyId(cita.id);
     try {
-      await confirmarCita(cita.id, result.value || undefined);
+      await cancelarCita(cita.id, result.value || undefined);
       await load();
     } catch (e) {
       Swal.fire({
@@ -204,10 +265,9 @@ export default function Agenda() {
             className={`${styles.action} ${styles.actionDanger}`}
             disabled={disabled}
             onClick={() =>
-              runAction(cita, cancelarCita, {
-                title: "¿Cancelar esta cita?",
-                confirmText: "Cancelar cita",
-                tone: "danger",
+              cancelarConMotivo(cita, {
+                title: "¿Rechazar esta solicitud?",
+                confirmText: "Rechazar",
               })
             }
           >
@@ -236,10 +296,9 @@ export default function Agenda() {
             className={`${styles.action} ${styles.actionDanger}`}
             disabled={disabled}
             onClick={() =>
-              runAction(cita, cancelarCita, {
+              cancelarConMotivo(cita, {
                 title: "¿Cancelar esta cita?",
                 confirmText: "Cancelar cita",
-                tone: "danger",
               })
             }
           >

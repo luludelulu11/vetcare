@@ -93,8 +93,8 @@ export default function AgendarCita() {
       await Swal.fire({
         icon: "success",
         title: "Solicitud enviada",
-        text: "La clínica revisará tu solicitud y confirmará la cita.",
-        timer: 2600,
+        text: "La clínica revisará la disponibilidad y te avisará por correo cuando se confirme.",
+        timer: 2800,
         showConfirmButton: false,
       });
 
@@ -243,7 +243,8 @@ export default function AgendarCita() {
           </button>
 
           <p className="cita-note">
-            Tu cita quedará pendiente hasta que la clínica la confirme.
+            Tu cita quedará pendiente hasta que la clínica confirme la disponibilidad.
+            El horario podría ajustarse; te avisaremos por correo.
           </p>
         </form>
       )}
