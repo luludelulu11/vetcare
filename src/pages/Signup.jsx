@@ -191,9 +191,11 @@ export default function Signup() {
               <div className="vc-input-wrap">
                 <input
                   type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
                   id="cedula"
                   name="cedula"
-                  placeholder="Cédula"
+                  placeholder="Cédula (11 dígitos)"
                   value={formData.cedula}
                   onChange={handleChange}
                   maxLength={11}
@@ -210,6 +212,8 @@ export default function Signup() {
               <div className="vc-input-wrap">
                 <input
                   type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
                   id="telefono"
                   name="telefono"
                   placeholder="Teléfono"
