@@ -132,18 +132,43 @@ const uploadAvatar = multer({
   },
 });
 
-const mailTransporter = nodemailer.createTransport({
-  host: process.env.MAIL_HOST,
-  port: Number(process.env.MAIL_PORT || 587),
-  secure: String(process.env.MAIL_SECURE).toLowerCase() === "true",
-  // Force IPv4 for the SMTP socket — hosts without IPv6 egress (Railway)
-  // otherwise fail with ENETUNREACH when Gmail resolves to an IPv6 address.
-  family: 4,
-  auth: {
-    user: process.env.MAIL_USER,
-    pass: process.env.MAIL_PASS,
-  },
-});
+// SMTP transport. Hosts without IPv6 egress (Railway) fail with ENETUNREACH
+// because smtp.gmail.com resolves to an IPv6 address first — and nodemailer
+// does its own DNS via dns.resolve() internally, so dns.setDefaultResultOrder
+// and `family: 4` don't reliably force IPv4. The robust fix: resolve the host
+// to an IPv4 address ourselves and connect to that literal IP, keeping the
+// real hostname as the TLS servername for certificate validation.
+const MAIL_HOST = process.env.MAIL_HOST || "smtp.gmail.com";
+
+function createMailTransport(connectHost) {
+  const usingIp = connectHost !== MAIL_HOST;
+  return nodemailer.createTransport({
+    host: connectHost,
+    port: Number(process.env.MAIL_PORT || 587),
+    secure: String(process.env.MAIL_SECURE).toLowerCase() === "true",
+    family: 4,
+    // When connecting to a bare IP, validate TLS against the real hostname.
+    ...(usingIp ? { tls: { servername: MAIL_HOST } } : {}),
+    auth: {
+      user: process.env.MAIL_USER,
+      pass: process.env.MAIL_PASS,
+    },
+  });
+}
+
+// Start with a hostname-based transport, then upgrade to an IPv4-pinned one
+// as soon as DNS resolves (non-blocking so startup never hangs on it).
+let mailTransporter = createMailTransport(MAIL_HOST);
+
+dns.promises
+  .lookup(MAIL_HOST, { family: 4 })
+  .then(({ address }) => {
+    mailTransporter = createMailTransport(address);
+    console.log(`Mail transport pinned to IPv4 ${address} (${MAIL_HOST}).`);
+  })
+  .catch((err) => {
+    console.error("Could not resolve mail host to IPv4; using hostname:", err.message);
+  });
 
 function parseJsonArray(value) {
   if (!value) return [];
