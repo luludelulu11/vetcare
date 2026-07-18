@@ -1431,7 +1431,7 @@ app.get("/api/mascotas/:mascotaId/consultas", requireAuth, async (req, res) => {
 // =============================
 app.post("/api/auth/register", requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { username, password, role, email } = req.body;
+    const { username, password, role, email, fullName, specialty, licenseNumber } = req.body;
 
     if (!username || !password || !role) {
       return res.status(400).json({
@@ -1482,10 +1482,31 @@ app.post("/api/auth/register", requireAuth, requireAdmin, async (req, res) => {
       }
     }
 
+    if (cleanRole === "DOCTOR" && (!fullName || !String(fullName).trim())) {
+      return res.status(400).json({
+        message: "El nombre completo es requerido para cuentas de doctor.",
+      });
+    }
+
     const passwordHash = await bcrypt.hash(cleanPassword, 10);
 
-    const user = await prisma.user.create({
-      data: { username: cleanUsername, email: cleanEmail, passwordHash, role: cleanRole },
+    const user = await prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: { username: cleanUsername, email: cleanEmail, passwordHash, role: cleanRole },
+      });
+
+      if (cleanRole === "DOCTOR") {
+        await tx.doctor.create({
+          data: {
+            userId: created.id,
+            fullName: String(fullName).trim(),
+            specialty: specialty ? String(specialty).trim() : null,
+            licenseNumber: licenseNumber ? String(licenseNumber).trim() : null,
+          },
+        });
+      }
+
+      return created;
     });
 
     return res.status(201).json({
