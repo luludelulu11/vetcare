@@ -70,9 +70,13 @@ export const getCitas = (params = {}) => {
 };
 
 export const crearCita = (payload) => send("/citas", "POST", payload);
-export const confirmarCita = (id, doctorId) =>
-  send(`/citas/${id}/confirmar`, "PATCH", doctorId ? { doctorId } : undefined);
-export const cancelarCita = (id) => send(`/citas/${id}/cancelar`, "PATCH");
+// payload: { doctorId?, fecha?, hora? } — fecha/hora let the secretary
+// reschedule to an available time while confirming.
+export const confirmarCita = (id, payload) =>
+  send(`/citas/${id}/confirmar`, "PATCH", payload);
+// motivo (optional) is included in the notification email to the client.
+export const cancelarCita = (id, motivo) =>
+  send(`/citas/${id}/cancelar`, "PATCH", motivo ? { motivo } : undefined);
 export const completarCita = (id) => send(`/citas/${id}/completar`, "PATCH");
 
 // GET /api/doctores — used to populate the doctor picker when confirming a cita.

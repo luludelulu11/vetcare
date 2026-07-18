@@ -2144,6 +2144,98 @@ function serializeAppointment(a) {
   };
 }
 
+// Notifies the client by email when the clinic confirms, reschedules,
+// rejects, or cancels one of their appointment requests. Best-effort:
+// a mail failure is logged but never breaks the staff action.
+async function enviarCorreoCitaEstado({ appointment, tipo, motivo }) {
+  const email = appointment.client?.email;
+  if (!email || !email.trim()) return;
+
+  const { fecha, hora } = formatFechaHora(appointment.scheduledAt);
+  const mascota = appointment.pet?.name || "tu mascota";
+  const servicio = appointment.appointmentType?.name || "el servicio solicitado";
+  const clienteNombre = `${appointment.client.firstName} ${appointment.client.lastName}`;
+  const fechaLegible = formatDateForEmail(appointment.scheduledAt);
+
+  let subject;
+  let title;
+  let intro;
+  let showWhen = false;
+  let footerNote;
+
+  if (tipo === "confirmada") {
+    subject = `Cita confirmada - ${mascota}`;
+    title = "¡Tu cita fue confirmada!";
+    intro = `Nos complace confirmar la cita de <strong>${mascota}</strong> para el servicio de <strong>${servicio}</strong>.`;
+    showWhen = true;
+    footerNote =
+      "Si necesitas reprogramar o cancelar, comunícate con la clínica con anticipación.";
+  } else if (tipo === "rechazada") {
+    subject = `Actualización de tu solicitud de cita - ${mascota}`;
+    title = "No pudimos confirmar tu solicitud";
+    intro = `Lamentamos informarte que la cita solicitada para <strong>${mascota}</strong> (servicio de <strong>${servicio}</strong>) no pudo confirmarse, probablemente por disponibilidad de horario.`;
+    footerNote = motivo
+      ? `Motivo: ${motivo}`
+      : "Puedes solicitar una nueva cita desde el portal eligiendo otro horario.";
+  } else {
+    subject = `Tu cita fue cancelada - ${mascota}`;
+    title = "Tu cita fue cancelada";
+    intro = `Te informamos que la cita de <strong>${mascota}</strong> (servicio de <strong>${servicio}</strong>) fue cancelada.`;
+    footerNote = motivo
+      ? `Motivo: ${motivo}`
+      : "Si deseas reagendar, puedes hacerlo desde el portal cuando gustes.";
+  }
+
+  const html = `
+    <div style="font-family: Arial, Helvetica, sans-serif; background-color:#f5f7fa; padding:24px;">
+      <div style="max-width:600px; margin:0 auto; background:#ffffff; border-radius:14px; overflow:hidden; border:1px solid #e5e7eb;">
+        <div style="padding:28px 32px 10px; text-align:center;">
+          <img src="cid:logoVerde" width="72" alt="VetCare" style="display:block; margin:0 auto 12px;" />
+          <h1 style="margin:0; font-size:28px; color:#2a9d8f; font-weight:700;">VetCare</h1>
+        </div>
+        <div style="padding:24px 32px 32px; color:#1f2937; line-height:1.6;">
+          <h2 style="margin:0 0 16px; font-size:22px; color:#111827; text-align:center;">
+            ${title}
+          </h2>
+          <p style="margin:0 0 16px;">
+            Estimado/a <strong>${clienteNombre}</strong>,
+          </p>
+          <p style="margin:0 0 18px;">${intro}</p>
+          <div style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:12px; padding:18px 20px; margin:20px 0;">
+            <p style="margin:0 0 10px;"><strong>Mascota:</strong> ${mascota}</p>
+            <p style="margin:0 0 10px;"><strong>Servicio:</strong> ${servicio}</p>
+            ${showWhen ? `<p style="margin:0;"><strong>Fecha y hora:</strong> ${fechaLegible} (${hora})</p>` : ""}
+          </div>
+          <p style="margin:0 0 16px;">${footerNote}</p>
+          <div style="margin-top:28px; padding-top:18px; border-top:1px solid #e5e7eb; font-size:13px; color:#6b7280;">
+            <p style="margin:0 0 6px;"><strong>VetCare</strong></p>
+            <p style="margin:0;">Este es un mensaje automático del sistema de citas.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  try {
+    await mailTransporter.sendMail({
+      from: process.env.MAIL_FROM,
+      to: email,
+      subject,
+      html,
+      attachments: [
+        {
+          filename: "logo-verde.png",
+          path: path.join(__dirname, "../public/logo-verde.png"),
+          cid: "logoVerde",
+        },
+      ],
+    });
+    console.log(`Correo de cita (${tipo}) enviado a ${email}. Cita: ${appointment.id}`);
+  } catch (mailError) {
+    console.error(`Error enviando correo de cita ${appointment.id}:`, mailError);
+  }
+}
+
 // =============================
 // APPOINTMENT TYPES — services + prices offered through the booking flow.
 // =============================
@@ -2308,18 +2400,27 @@ app.post("/api/agenda/citas", requireAuth, requireStaff, async (req, res) => {
 
 app.patch("/api/agenda/citas/:id/confirmar", requireAuth, requireStaff, async (req, res) => {
   try {
-    const { doctorId } = req.body || {};
+    // Secretary may reschedule to an available time while confirming.
+    const { doctorId, fecha, hora } = req.body || {};
 
     const appointment = await prisma.appointment.findFirst({
       where: { id: req.params.id, deletedAt: null },
     });
     if (!appointment) return res.status(404).json({ message: "Cita no encontrada." });
 
+    const data = {
+      status: "SCHEDULED",
+      doctorId: doctorId || appointment.doctorId || null,
+    };
+    if (fecha && hora) data.scheduledAt = parseFechaHora(fecha, hora);
+
     const updated = await prisma.appointment.update({
       where: { id: appointment.id },
-      data: { status: "SCHEDULED", doctorId: doctorId || appointment.doctorId || null },
+      data,
       include: appointmentInclude,
     });
+
+    await enviarCorreoCitaEstado({ appointment: updated, tipo: "confirmada" });
 
     return res.json(serializeAppointment(updated));
   } catch (error) {
@@ -2330,16 +2431,24 @@ app.patch("/api/agenda/citas/:id/confirmar", requireAuth, requireStaff, async (r
 
 app.patch("/api/agenda/citas/:id/cancelar", requireAuth, requireStaff, async (req, res) => {
   try {
+    const { motivo } = req.body || {};
+
     const appointment = await prisma.appointment.findFirst({
       where: { id: req.params.id, deletedAt: null },
     });
     if (!appointment) return res.status(404).json({ message: "Cita no encontrada." });
+
+    // A still-pending request being turned down reads as a rejection;
+    // an already-confirmed cita being dropped reads as a cancellation.
+    const tipo = appointment.status === "REQUESTED" ? "rechazada" : "cancelada";
 
     const updated = await prisma.appointment.update({
       where: { id: appointment.id },
       data: { status: "CANCELLED" },
       include: appointmentInclude,
     });
+
+    await enviarCorreoCitaEstado({ appointment: updated, tipo, motivo });
 
     return res.json(serializeAppointment(updated));
   } catch (error) {
