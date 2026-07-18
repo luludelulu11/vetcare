@@ -1,20 +1,27 @@
 import bcrypt from "bcrypt";
 import prisma from "./client.js";
 
-async function upsertStaff(username, password, role) {
+async function upsertStaff(username, password, role, email, firstName, lastName) {
   const passwordHash = await bcrypt.hash(password, 10);
   return prisma.user.upsert({
     where: { username },
-    update: {},
-    create: { username, passwordHash, role },
+    update: { email, firstName, lastName },
+    create: { username, email, firstName, lastName, passwordHash, role },
   });
 }
 
 async function main() {
-  await upsertStaff("admin", "Admin123*", "ADMIN");
+  await upsertStaff("admin", "Admin123*", "ADMIN", "admin@vetcare.test", "Carmen", "Reyes");
   console.log("ADMIN listo -> usuario: admin / contraseña: Admin123*");
 
-  const doctorUser = await upsertStaff("doctor", "Doctor123*", "DOCTOR");
+  const doctorUser = await upsertStaff(
+    "doctor",
+    "Doctor123*",
+    "DOCTOR",
+    "doctor@vetcare.test",
+    "Ana",
+    "Fernández"
+  );
   await prisma.doctor.upsert({
     where: { userId: doctorUser.id },
     update: {},
@@ -27,7 +34,14 @@ async function main() {
   });
   console.log("DOCTOR listo -> usuario: doctor / contraseña: Doctor123*");
 
-  await upsertStaff("secretaria", "Staff123*", "STAFF");
+  await upsertStaff(
+    "secretaria",
+    "Staff123*",
+    "STAFF",
+    "secretaria@vetcare.test",
+    "Sofía",
+    "Martínez"
+  );
   console.log("STAFF listo -> usuario: secretaria / contraseña: Staff123*");
 
   const clientPasswordHash = await bcrypt.hash("Cliente123*", 10);

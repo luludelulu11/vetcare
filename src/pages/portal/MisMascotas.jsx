@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { PawPrint, ChevronRight } from "lucide-react";
+import { PawPrint, ChevronRight, Plus } from "lucide-react";
 import { getMisMascotas } from "../../services/portalService.js";
 
 function petMeta(p) {
@@ -39,6 +39,10 @@ export default function MisMascotas() {
       <h1 className="portal__greeting">Mis mascotas</h1>
       <p className="portal__subtitle">Toca una mascota para ver su carnet.</p>
 
+      <Link to="/agregar-mascota" className="btn-primary-teal cita-cta">
+        <Plus size={16} /> Agregar mascota
+      </Link>
+
       {status === "loading" && <div className="portal-card">Cargando…</div>}
       {status === "error" && <div className="portal-error">{error}</div>}
 
@@ -46,7 +50,7 @@ export default function MisMascotas() {
         <div className="portal-card portal-state">
           <PawPrint size={28} />
           <p className="portal-state__title">Aún no hay mascotas</p>
-          <p>Cuando la clínica registre tus mascotas aparecerán aquí.</p>
+          <p>Registra tu primera mascota con el botón de arriba.</p>
         </div>
       )}
 

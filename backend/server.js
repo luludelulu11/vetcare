@@ -52,6 +52,7 @@ app.use(express.static(distPath));
 
 const uploadsBaseDir = path.join(__dirname, "uploads");
 const consultasUploadsDir = path.join(uploadsBaseDir, "consultas");
+const avatarsUploadsDir = path.join(uploadsBaseDir, "avatars");
 
 if (!fs.existsSync(uploadsBaseDir)) {
   fs.mkdirSync(uploadsBaseDir, { recursive: true });
@@ -59,6 +60,10 @@ if (!fs.existsSync(uploadsBaseDir)) {
 
 if (!fs.existsSync(consultasUploadsDir)) {
   fs.mkdirSync(consultasUploadsDir, { recursive: true });
+}
+
+if (!fs.existsSync(avatarsUploadsDir)) {
+  fs.mkdirSync(avatarsUploadsDir, { recursive: true });
 }
 
 app.use("/uploads", express.static(uploadsBaseDir));
@@ -79,6 +84,31 @@ const upload = multer({
   limits: {
     fileSize: 15 * 1024 * 1024,
     files: 10,
+  },
+});
+
+const avatarStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, avatarsUploadsDir);
+  },
+  filename: (req, file, cb) => {
+    const uniquePrefix = `${Date.now()}-${crypto.randomUUID()}`;
+    const safeOriginalName = file.originalname.replace(/[^\w.\-]/g, "_");
+    cb(null, `${uniquePrefix}-${safeOriginalName}`);
+  },
+});
+
+const uploadAvatar = multer({
+  storage: avatarStorage,
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+    files: 1,
+  },
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype.startsWith("image/")) {
+      return cb(new Error("Solo se permiten archivos de imagen."));
+    }
+    cb(null, true);
   },
 });
 
@@ -1431,7 +1461,17 @@ app.get("/api/mascotas/:mascotaId/consultas", requireAuth, async (req, res) => {
 // =============================
 app.post("/api/auth/register", requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { username, password, role } = req.body;
+    const {
+      username,
+      password,
+      role,
+      email,
+      firstName,
+      lastName,
+      fullName,
+      specialty,
+      licenseNumber,
+    } = req.body;
 
     if (!username || !password || !role) {
       return res.status(400).json({
@@ -1442,6 +1482,7 @@ app.post("/api/auth/register", requireAuth, requireAdmin, async (req, res) => {
     const cleanUsername = username.trim();
     const cleanPassword = password.trim();
     const cleanRole = role.trim().toUpperCase();
+    const cleanEmail = email ? String(email).trim().toLowerCase() : null;
 
     if (!cleanUsername || !cleanPassword || !cleanRole) {
       return res.status(400).json({
@@ -1468,10 +1509,51 @@ app.post("/api/auth/register", requireAuth, requireAdmin, async (req, res) => {
       });
     }
 
+    if (cleanEmail) {
+      const existingEmail = await prisma.user.findFirst({
+        where: { email: cleanEmail, deletedAt: null },
+        select: { id: true },
+      });
+
+      if (existingEmail) {
+        return res.status(409).json({
+          message: "Email already exists.",
+        });
+      }
+    }
+
+    if (cleanRole === "DOCTOR" && (!fullName || !String(fullName).trim())) {
+      return res.status(400).json({
+        message: "El nombre completo es requerido para cuentas de doctor.",
+      });
+    }
+
     const passwordHash = await bcrypt.hash(cleanPassword, 10);
 
-    const user = await prisma.user.create({
-      data: { username: cleanUsername, passwordHash, role: cleanRole },
+    const user = await prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          username: cleanUsername,
+          email: cleanEmail,
+          firstName: firstName ? String(firstName).trim() : null,
+          lastName: lastName ? String(lastName).trim() : null,
+          passwordHash,
+          role: cleanRole,
+        },
+      });
+
+      if (cleanRole === "DOCTOR") {
+        await tx.doctor.create({
+          data: {
+            userId: created.id,
+            fullName: String(fullName).trim(),
+            specialty: specialty ? String(specialty).trim() : null,
+            licenseNumber: licenseNumber ? String(licenseNumber).trim() : null,
+          },
+        });
+      }
+
+      return created;
     });
 
     return res.status(201).json({
@@ -1484,6 +1566,302 @@ app.post("/api/auth/register", requireAuth, requireAdmin, async (req, res) => {
     return res.status(500).json({
       message: error.message,
     });
+  }
+});
+
+// =============================
+// SIGNUP (public — client self-registration)
+// =============================
+app.post("/api/auth/signup", authLimiter, async (req, res) => {
+  try {
+    const { nombre, apellido, cedula, telefono, correo, password } = req.body;
+
+    if (!nombre || !apellido || !cedula || !telefono || !correo || !password) {
+      return res.status(400).json({
+        message: "Complete todos los campos requeridos.",
+      });
+    }
+
+    const cleanCedula = String(cedula).trim();
+    const cleanEmail = String(correo).trim().toLowerCase();
+    const cleanPassword = String(password).trim();
+
+    if (cleanPassword.length < 8) {
+      return res.status(400).json({
+        message: "La contraseña debe tener al menos 8 caracteres.",
+      });
+    }
+
+    const existingByCedula = await prisma.client.findFirst({
+      where: { nationalId: cleanCedula, deletedAt: null },
+      select: { id: true },
+    });
+
+    if (existingByCedula) {
+      return res.status(409).json({
+        message: "Ya existe una cuenta registrada con esa cédula.",
+      });
+    }
+
+    const existingByEmail = await prisma.client.findFirst({
+      where: { username: cleanEmail, deletedAt: null },
+      select: { id: true },
+    });
+
+    if (existingByEmail) {
+      return res.status(409).json({
+        message: "Ya existe una cuenta registrada con ese correo.",
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(cleanPassword, 10);
+
+    const client = await prisma.client.create({
+      data: {
+        firstName: String(nombre).trim(),
+        lastName: String(apellido).trim(),
+        nationalId: cleanCedula,
+        email: cleanEmail,
+        phonePrimary: String(telefono).trim(),
+        username: cleanEmail,
+        passwordHash,
+      },
+    });
+
+    const token = jwt.sign(
+      { id: client.id, username: client.username, role: "CLIENT", client_id: client.id },
+      process.env.JWT_SECRET,
+      { expiresIn: "8h" }
+    );
+
+    return res.status(201).json({
+      token,
+      user: {
+        id: client.id,
+        username: client.username,
+        role: "CLIENT",
+        first_name: client.firstName,
+        last_name: client.lastName,
+        profile_photo_url: client.profilePhotoUrl,
+      },
+    });
+  } catch (error) {
+    console.error("Signup error:", error);
+
+    return res.status(500).json({
+      message: "No se pudo crear la cuenta.",
+    });
+  }
+});
+
+// =============================
+// STAFF PROFILE (own account — any authenticated staff role)
+// =============================
+app.get("/api/perfil", requireAuth, async (req, res) => {
+  try {
+    const user = await prisma.user.findFirst({
+      where: { id: req.user.id, deletedAt: null },
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "Perfil no encontrado." });
+    }
+
+    return res.json({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      first_name: user.firstName,
+      last_name: user.lastName,
+      role: user.role,
+      profile_photo_url: user.profilePhotoUrl,
+    });
+  } catch (error) {
+    console.error("Error cargando perfil:", error);
+    return res.status(500).json({ message: "Error interno del servidor." });
+  }
+});
+
+app.post(
+  "/api/perfil/foto",
+  requireAuth,
+  uploadAvatar.single("foto"),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "Selecciona una imagen." });
+      }
+
+      const publicUrl = `/uploads/avatars/${req.file.filename}`;
+
+      await prisma.user.update({
+        where: { id: req.user.id },
+        data: { profilePhotoUrl: publicUrl },
+      });
+
+      return res.json({ profile_photo_url: publicUrl });
+    } catch (error) {
+      console.error("Error subiendo foto de perfil:", error);
+      return res.status(500).json({ message: error.message || "No se pudo subir la foto." });
+    }
+  }
+);
+
+// =============================
+// FORGOT / RESET PASSWORD (public — works for staff and client accounts)
+// =============================
+function passwordResetEmailHtml(link) {
+  return `
+    <div style="font-family: Arial, Helvetica, sans-serif; background-color:#f5f7fa; padding:24px;">
+      <div style="max-width:600px; margin:0 auto; background:#ffffff; border-radius:14px; overflow:hidden; border:1px solid #e5e7eb;">
+        <div style="padding:28px 32px 10px; text-align:center;">
+          <img src="cid:logoVerde" width="72" alt="VetCare" style="display:block; margin:0 auto 12px;" />
+          <h1 style="margin:0; font-size:28px; color:#2a9d8f; font-weight:700;">VetCare</h1>
+        </div>
+        <div style="padding:24px 32px 32px; color:#1f2937; line-height:1.6;">
+          <h2 style="margin:0 0 16px; font-size:22px; color:#111827; text-align:center;">
+            Restablecer contraseña
+          </h2>
+          <p style="margin:0 0 18px;">
+            Recibimos una solicitud para restablecer la contraseña de tu cuenta VetCare.
+            Si fuiste tú, haz clic en el siguiente botón. Este enlace vence en 1 hora.
+          </p>
+          <div style="text-align:center; margin:28px 0;">
+            <a href="${link}" style="background:#2a9d8f; color:#ffffff; padding:12px 28px; border-radius:10px; text-decoration:none; font-weight:600;">
+              Restablecer contraseña
+            </a>
+          </div>
+          <p style="margin:0 0 16px; color:#6b7280; font-size:13px;">
+            Si no solicitaste esto, puedes ignorar este correo con seguridad.
+          </p>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+app.post("/api/auth/forgot-password", authLimiter, async (req, res) => {
+  const genericResponse = {
+    message:
+      "Si existe una cuenta con ese usuario, te enviaremos un correo con instrucciones.",
+  };
+
+  try {
+    const { username } = req.body;
+    if (!username) return res.status(400).json(genericResponse);
+
+    const staffUser = await prisma.user.findFirst({
+      where: { username, deletedAt: null },
+      select: { id: true, email: true },
+    });
+
+    const client = staffUser
+      ? null
+      : await prisma.client.findFirst({
+          where: { username, deletedAt: null },
+          select: { id: true, email: true },
+        });
+
+    const account = staffUser || client;
+    const email = account?.email;
+
+    if (account && email) {
+      const rawToken = crypto.randomBytes(32).toString("hex");
+      const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+      await prisma.passwordResetToken.create({
+        data: {
+          userId: staffUser ? account.id : null,
+          clientId: staffUser ? null : account.id,
+          tokenHash,
+          expiresAt,
+        },
+      });
+
+      const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+      const link = `${frontendUrl}/restablecer-contrasena?token=${rawToken}`;
+
+      console.log(`Password reset link for ${username}: ${link}`);
+
+      try {
+        await mailTransporter.sendMail({
+          from: process.env.MAIL_FROM,
+          to: email,
+          subject: "Restablecer tu contraseña de VetCare",
+          html: passwordResetEmailHtml(link),
+          attachments: [
+            {
+              filename: "logo-verde.png",
+              path: path.join(__dirname, "../public/logo-verde.png"),
+              cid: "logoVerde",
+            },
+          ],
+        });
+      } catch (mailError) {
+        console.error("Error sending password reset email:", mailError);
+      }
+    }
+
+    return res.json(genericResponse);
+  } catch (error) {
+    console.error("Forgot password error:", error);
+    return res.json(genericResponse);
+  }
+});
+
+app.post("/api/auth/reset-password", authLimiter, async (req, res) => {
+  try {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+      return res.status(400).json({ message: "Token y contraseña son requeridos." });
+    }
+
+    const cleanPassword = String(password).trim();
+    if (cleanPassword.length < 8) {
+      return res.status(400).json({
+        message: "La contraseña debe tener al menos 8 caracteres.",
+      });
+    }
+
+    const tokenHash = crypto.createHash("sha256").update(String(token)).digest("hex");
+
+    const resetToken = await prisma.passwordResetToken.findFirst({
+      where: { tokenHash, usedAt: null, expiresAt: { gt: new Date() } },
+    });
+
+    if (!resetToken) {
+      return res.status(400).json({
+        message: "El enlace de restablecimiento no es válido o ha expirado.",
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(cleanPassword, 10);
+
+    await prisma.$transaction(async (tx) => {
+      if (resetToken.userId) {
+        await tx.user.update({
+          where: { id: resetToken.userId },
+          data: { passwordHash, passwordChangedAt: new Date() },
+        });
+      } else if (resetToken.clientId) {
+        await tx.client.update({
+          where: { id: resetToken.clientId },
+          data: { passwordHash },
+        });
+      }
+
+      await tx.passwordResetToken.update({
+        where: { id: resetToken.id },
+        data: { usedAt: new Date() },
+      });
+    });
+
+    return res.json({ message: "Contraseña actualizada correctamente." });
+  } catch (error) {
+    console.error("Reset password error:", error);
+    return res.status(500).json({ message: "No se pudo restablecer la contraseña." });
   }
 });
 
@@ -1504,7 +1882,15 @@ app.post("/api/auth/login", authLimiter, async (req, res) => {
 
     const staffUser = await prisma.user.findFirst({
       where: { username, deletedAt: null },
-      select: { id: true, username: true, passwordHash: true, role: true },
+      select: {
+        id: true,
+        username: true,
+        passwordHash: true,
+        role: true,
+        firstName: true,
+        lastName: true,
+        profilePhotoUrl: true,
+      },
     });
 
     if (staffUser) {
@@ -1524,13 +1910,27 @@ app.post("/api/auth/login", authLimiter, async (req, res) => {
 
       return res.json({
         token,
-        user: { id: staffUser.id, username: staffUser.username, role: staffUser.role },
+        user: {
+          id: staffUser.id,
+          username: staffUser.username,
+          role: staffUser.role,
+          first_name: staffUser.firstName,
+          last_name: staffUser.lastName,
+          profile_photo_url: staffUser.profilePhotoUrl,
+        },
       });
     }
 
     const client = await prisma.client.findFirst({
       where: { username, deletedAt: null, passwordHash: { not: null } },
-      select: { id: true, username: true, passwordHash: true },
+      select: {
+        id: true,
+        username: true,
+        passwordHash: true,
+        firstName: true,
+        lastName: true,
+        profilePhotoUrl: true,
+      },
     });
 
     if (!client) {
@@ -1555,7 +1955,14 @@ app.post("/api/auth/login", authLimiter, async (req, res) => {
 
     return res.json({
       token,
-      user: { id: client.id, username: client.username, role: "CLIENT" },
+      user: {
+        id: client.id,
+        username: client.username,
+        role: "CLIENT",
+        first_name: client.firstName,
+        last_name: client.lastName,
+        profile_photo_url: client.profilePhotoUrl,
+      },
     });
   } catch (error) {
     console.error("Login error:", error);
@@ -1699,6 +2106,23 @@ function parseFechaHora(fecha, hora) {
   return new Date(`${fecha}T${hora || "00:00"}:00`);
 }
 
+// Single-row clinic settings (aggressive-pet sedation surcharge, etc).
+// Created lazily if the seed migration's row is somehow missing.
+async function getClinicSettings() {
+  const existing = await prisma.clinicSettings.findFirst();
+  if (existing) return existing;
+  return prisma.clinicSettings.create({ data: {} });
+}
+
+// Aggressive pets may need a sedative, so a flat surcharge (set by admins via
+// /api/admin/settings) is added on top of the appointment type's base price.
+async function computeEstimatedPrice(appointmentType, isPetAggressive) {
+  const base = Number(appointmentType.price || 0);
+  if (!isPetAggressive) return base;
+  const settings = await getClinicSettings();
+  return base + Number(settings.aggressivePetSurcharge || 0);
+}
+
 function serializeAppointment(a) {
   const { fecha, hora } = formatFechaHora(a.scheduledAt);
   return {
@@ -1715,8 +2139,98 @@ function serializeAppointment(a) {
     estado: ESTADO_FROM_DB[a.status] || "PENDIENTE",
     doctorId: a.doctorId || undefined,
     createdAt: a.createdAt,
+    mascotaAgresiva: a.isPetAggressive,
+    precioEstimado: a.estimatedPrice,
   };
 }
+
+// =============================
+// APPOINTMENT TYPES — services + prices offered through the booking flow.
+// =============================
+app.get("/api/appointment-types", requireAuth, async (req, res) => {
+  try {
+    const [types, settings] = await Promise.all([
+      prisma.appointmentType.findMany({
+        where: { deletedAt: null },
+        orderBy: { name: "asc" },
+      }),
+      getClinicSettings(),
+    ]);
+
+    return res.json({
+      types: types.map((t) => ({
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        price: t.price,
+      })),
+      aggressivePetSurcharge: settings.aggressivePetSurcharge,
+    });
+  } catch (error) {
+    console.error("Error loading appointment types:", error);
+    return res.status(500).json({ message: "No se pudieron cargar los servicios." });
+  }
+});
+
+app.put(
+  "/api/admin/appointment-types/:id",
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const { price } = req.body;
+
+      if (price === undefined || price === null || Number.isNaN(Number(price)) || Number(price) < 0) {
+        return res.status(400).json({ message: "Precio inválido." });
+      }
+
+      const type = await prisma.appointmentType.update({
+        where: { id: req.params.id },
+        data: { price: Number(price) },
+      });
+
+      return res.json({ id: type.id, name: type.name, price: type.price });
+    } catch (error) {
+      console.error("Error actualizando precio:", error);
+      return res.status(500).json({ message: "No se pudo actualizar el precio." });
+    }
+  }
+);
+
+app.get("/api/admin/settings", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const settings = await getClinicSettings();
+    return res.json({ aggressivePetSurcharge: settings.aggressivePetSurcharge });
+  } catch (error) {
+    console.error("Error loading clinic settings:", error);
+    return res.status(500).json({ message: "No se pudo cargar la configuración." });
+  }
+});
+
+app.put("/api/admin/settings", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { aggressivePetSurcharge } = req.body;
+
+    if (
+      aggressivePetSurcharge === undefined ||
+      Number.isNaN(Number(aggressivePetSurcharge)) ||
+      Number(aggressivePetSurcharge) < 0
+    ) {
+      return res.status(400).json({ message: "Recargo inválido." });
+    }
+
+    const settings = await getClinicSettings();
+    const updated = await prisma.clinicSettings.update({
+      where: { id: settings.id },
+      data: { aggressivePetSurcharge: Number(aggressivePetSurcharge) },
+    });
+
+    return res.json({ aggressivePetSurcharge: updated.aggressivePetSurcharge });
+  } catch (error) {
+    console.error("Error actualizando configuración:", error);
+    return res.status(500).json({ message: "No se pudo actualizar la configuración." });
+  }
+});
 
 // =============================
 // AGENDA (staff) — front-desk scheduling, all staff roles.
@@ -1750,7 +2264,7 @@ app.get("/api/agenda/citas", requireAuth, requireStaff, async (req, res) => {
 
 app.post("/api/agenda/citas", requireAuth, requireStaff, async (req, res) => {
   try {
-    const { mascotaId, servicio, prioridad, fecha, hora, motivo } = req.body;
+    const { mascotaId, servicio, prioridad, fecha, hora, motivo, mascotaAgresiva } = req.body;
 
     if (!mascotaId || !servicio || !fecha || !hora) {
       return res.status(400).json({ message: "Complete mascota, servicio, fecha y hora." });
@@ -1767,6 +2281,9 @@ app.post("/api/agenda/citas", requireAuth, requireStaff, async (req, res) => {
     });
     if (!appointmentType) return res.status(400).json({ message: "Servicio no válido." });
 
+    const isPetAggressive = Boolean(mascotaAgresiva);
+    const estimatedPrice = await computeEstimatedPrice(appointmentType, isPetAggressive);
+
     const appointment = await prisma.appointment.create({
       data: {
         petId: pet.id,
@@ -1776,6 +2293,8 @@ app.post("/api/agenda/citas", requireAuth, requireStaff, async (req, res) => {
         status: "SCHEDULED",
         priority: PRIORIDAD_TO_DB[prioridad] || "NORMAL",
         notes: motivo || null,
+        isPetAggressive,
+        estimatedPrice,
       },
       include: appointmentInclude,
     });
@@ -1898,6 +2417,54 @@ app.get("/api/portal/mascotas", requireAuth, requireClient, async (req, res) => 
   }
 });
 
+// The logged-in client registers one of their own pets.
+app.post("/api/portal/mascotas", requireAuth, requireClient, async (req, res) => {
+  try {
+    const { nombre, especie, raza, sexo, edad, peso, observaciones } = req.body;
+
+    if (!nombre || !String(nombre).trim()) {
+      return res.status(400).json({ message: "El nombre de la mascota es requerido." });
+    }
+
+    let sexValue = "UNKNOWN";
+    if (sexo === "Macho" || sexo === "MALE") sexValue = "MALE";
+    if (sexo === "Hembra" || sexo === "FEMALE") sexValue = "FEMALE";
+
+    let speciesValue = null;
+    if (especie === "Perro" || especie === "CANINE") speciesValue = "CANINE";
+    if (especie === "Gato" || especie === "FELINE") speciesValue = "FELINE";
+
+    const pet = await prisma.pet.create({
+      data: {
+        clientId: req.user.client_id,
+        name: String(nombre).trim(),
+        species: speciesValue,
+        breed: raza ? String(raza).trim() : null,
+        sex: sexValue,
+        ageYears: edad ? Number(edad) : null,
+        weightKg: peso ? Number(peso) : null,
+        weightText: peso ? String(peso) : null,
+        observations: observaciones ? String(observaciones).trim() : null,
+      },
+    });
+
+    return res.status(201).json({
+      id: pet.id,
+      nombre: pet.name,
+      especie: pet.species,
+      raza: pet.breed,
+      sexo: pet.sex,
+      edad: pet.ageYears,
+      peso: pet.weightKg,
+      weight_text: pet.weightText,
+      observaciones: pet.observations,
+    });
+  } catch (error) {
+    console.error("Error creando mascota del portal:", error);
+    return res.status(500).json({ message: "No se pudo registrar la mascota." });
+  }
+});
+
 app.get("/api/portal/mascotas/:id", requireAuth, requireClient, async (req, res) => {
   try {
     const pet = await prisma.pet.findFirst({
@@ -1992,12 +2559,39 @@ app.get("/api/portal/perfil", requireAuth, requireClient, async (req, res) => {
       phone_primary: client.phonePrimary,
       phone_secondary: client.phoneSecondary,
       address_line1: client.addressLine1,
+      profile_photo_url: client.profilePhotoUrl,
     });
   } catch (error) {
     console.error("Error cargando perfil del portal:", error);
     return res.status(500).json({ message: "Error interno del servidor." });
   }
 });
+
+app.post(
+  "/api/portal/perfil/foto",
+  requireAuth,
+  requireClient,
+  uploadAvatar.single("foto"),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "Selecciona una imagen." });
+      }
+
+      const publicUrl = `/uploads/avatars/${req.file.filename}`;
+
+      await prisma.client.update({
+        where: { id: req.user.client_id },
+        data: { profilePhotoUrl: publicUrl },
+      });
+
+      return res.json({ profile_photo_url: publicUrl });
+    } catch (error) {
+      console.error("Error subiendo foto de perfil:", error);
+      return res.status(500).json({ message: error.message || "No se pudo subir la foto." });
+    }
+  }
+);
 
 // Citas — client-created requests, always start PENDIENTE (REQUESTED).
 app.get("/api/portal/citas", requireAuth, requireClient, async (req, res) => {
@@ -2017,7 +2611,7 @@ app.get("/api/portal/citas", requireAuth, requireClient, async (req, res) => {
 
 app.post("/api/portal/citas", requireAuth, requireClient, async (req, res) => {
   try {
-    const { mascotaId, servicio, prioridad, fecha, hora, motivo } = req.body;
+    const { mascotaId, servicio, prioridad, fecha, hora, motivo, mascotaAgresiva } = req.body;
 
     if (!mascotaId || !servicio || !fecha || !hora) {
       return res.status(400).json({ message: "Complete mascota, servicio, fecha y hora." });
@@ -2034,6 +2628,9 @@ app.post("/api/portal/citas", requireAuth, requireClient, async (req, res) => {
     });
     if (!appointmentType) return res.status(400).json({ message: "Servicio no válido." });
 
+    const isPetAggressive = Boolean(mascotaAgresiva);
+    const estimatedPrice = await computeEstimatedPrice(appointmentType, isPetAggressive);
+
     const appointment = await prisma.appointment.create({
       data: {
         petId: pet.id,
@@ -2043,6 +2640,8 @@ app.post("/api/portal/citas", requireAuth, requireClient, async (req, res) => {
         status: "REQUESTED",
         priority: PRIORIDAD_TO_DB[prioridad] || "NORMAL",
         notes: motivo || null,
+        isPetAggressive,
+        estimatedPrice,
       },
       include: { pet: true, appointmentType: true },
     });

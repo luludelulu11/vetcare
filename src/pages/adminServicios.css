@@ -1,0 +1,77 @@
+.servicios-card {
+  background: var(--surface);
+  border: 1px solid var(--border-default);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.servicios-card + .servicios-card {
+  margin-top: 16px;
+}
+
+.servicios-card h2 {
+  font-family: "Playfair Display", serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 4px;
+}
+
+.servicios-card p.servicios-hint {
+  color: var(--text-tertiary);
+  font-size: 13px;
+  margin: 0 0 16px;
+}
+
+.servicios-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.servicios-row:last-child {
+  border-bottom: none;
+}
+
+.servicios-row-name {
+  font-weight: 500;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.servicios-row-desc {
+  color: var(--text-tertiary);
+  font-size: 12px;
+  margin: 2px 0 0;
+}
+
+.servicios-price-input {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.servicios-price-input span {
+  color: var(--text-tertiary);
+  font-size: 14px;
+}
+
+.servicios-price-input input {
+  width: 100px;
+  border: 1px solid var(--border-default);
+  background: var(--input-bg);
+  color: var(--text-primary);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.servicios-save-btn {
+  margin-top: 18px;
+}

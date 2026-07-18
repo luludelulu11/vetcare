@@ -1,6 +1,6 @@
 import "./register.css";
 import { useState } from "react";
-import { User, Mail, Lock, Phone, IdCard } from "lucide-react";
+import { User, Mail, Lock, Phone, IdCard, Shield, Stethoscope } from "lucide-react";
 import { useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -13,6 +13,12 @@ import SecureNote from "../components/SecureNote";
 
 const API_URL = import.meta.env.VITE_API_URL || "";
 
+const ROLES = [
+  { value: "STAFF", label: "Secretario/a" },
+  { value: "DOCTOR", label: "Doctor/a" },
+  { value: "ADMIN", label: "Administrador/a" },
+];
+
 export default function CreateAccountVetCare() {
   const navigate = useNavigate();
 
@@ -24,6 +30,9 @@ export default function CreateAccountVetCare() {
     email: "",
     password: "",
     confirmPassword: "",
+    role: "STAFF",
+    specialty: "",
+    licenseNumber: "",
   });
 
   useEffect(() => {
@@ -138,6 +147,10 @@ export default function CreateAccountVetCare() {
       errors.confirmPassword = "Las contraseñas no coinciden.";
     }
 
+    if (!formData.role) {
+      errors.role = "Selecciona un rol.";
+    }
+
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
       setError("Corrige los campos marcados.");
@@ -163,8 +176,18 @@ export default function CreateAccountVetCare() {
         },
         body: JSON.stringify({
           username: formData.email.trim(),
+          email: formData.email.trim(),
           password: formData.password.trim(),
-          role: "ADMIN",
+          role: formData.role,
+          firstName: formData.nombre.trim(),
+          lastName: formData.apellido.trim(),
+          fullName:
+            formData.role === "DOCTOR"
+              ? `${formData.nombre.trim()} ${formData.apellido.trim()}`.trim()
+              : undefined,
+          specialty: formData.role === "DOCTOR" ? formData.specialty.trim() : undefined,
+          licenseNumber:
+            formData.role === "DOCTOR" ? formData.licenseNumber.trim() : undefined,
         }),
       });
 
@@ -185,6 +208,9 @@ export default function CreateAccountVetCare() {
         email: "",
         password: "",
         confirmPassword: "",
+        role: "STAFF",
+        specialty: "",
+        licenseNumber: "",
       });
 
       setTimeout(() => {
@@ -218,6 +244,21 @@ export default function CreateAccountVetCare() {
           <div className="au-form-container">
             <form className="au-form" onSubmit={handleSubmit}>
               <div className="au-form-grid">
+                <div className="au-field au-field-full">
+                  <label>ROL <span className="req">*</span></label>
+                  <div className="au-input-wrap">
+                    <Shield size={18} />
+                    <select name="role" value={formData.role} onChange={handleChange}>
+                      {ROLES.map((r) => (
+                        <option key={r.value} value={r.value}>
+                          {r.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {fieldErrors.role && <small>{fieldErrors.role}</small>}
+                </div>
+
                 <div className="au-field">
                   <label>NOMBRE <span className="req">*</span></label>
                   <div className="au-input-wrap">
@@ -326,6 +367,38 @@ export default function CreateAccountVetCare() {
                     <small>{fieldErrors.confirmPassword}</small>
                   )}
                 </div>
+
+                {formData.role === "DOCTOR" && (
+                  <>
+                    <div className="au-field">
+                      <label>ESPECIALIDAD</label>
+                      <div className="au-input-wrap">
+                        <Stethoscope size={18} />
+                        <input
+                          type="text"
+                          name="specialty"
+                          placeholder="Ej. Medicina General"
+                          value={formData.specialty}
+                          onChange={handleChange}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="au-field">
+                      <label>NÚMERO DE LICENCIA</label>
+                      <div className="au-input-wrap">
+                        <IdCard size={18} />
+                        <input
+                          type="text"
+                          name="licenseNumber"
+                          placeholder="Ej. VET-005"
+                          value={formData.licenseNumber}
+                          onChange={handleChange}
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
               {error && <p style={{ color: "red", marginTop: "10px" }}>{error}</p>}

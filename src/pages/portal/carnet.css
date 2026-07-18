@@ -169,8 +169,30 @@
   filter: brightness(1.05);
 }
 
-/* ---------- Print: isolate the card for clean PDF export ---------- */
+/* ---------- Print: isolate the card for clean PDF export ----------
+   Other routes' print CSS (historialClinico.css) sets a global
+   `body * { visibility: hidden !important }` isolation rule that only
+   reveals `.hc-doc` — since every page's CSS is bundled together, that
+   rule leaks onto this route too and hides the whole carnet unless we
+   explicitly re-reveal it here. */
 @media print {
+  body * {
+    visibility: hidden !important;
+  }
+
+  .vcard,
+  .vcard * {
+    visibility: visible !important;
+  }
+
+  .vcard {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-width: none;
+  }
+
   .no-print,
   .portal__tabbar {
     display: none !important;

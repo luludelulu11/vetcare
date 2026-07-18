@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import "./login.css";
 import { User, Lock, Eye, EyeOff } from "lucide-react";
 import SecureNote from "../components/SecureNote";
@@ -11,6 +11,7 @@ import { roleHome } from "../auth/RequireRole";
 export default function Login() {
 
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
   const [usuario, setUsuario] = useState("");
   const [contrasena, setContrasena] = useState("");
@@ -19,6 +20,7 @@ export default function Login() {
   const [error, setError] = useState("");
   const API_URL = import.meta.env.VITE_API_URL || "";
   const passType = useMemo(() => (showPass ? "text" : "password"), [showPass]);
+  const resetSuccess = Boolean(location.state?.passwordResetSuccess);
 
   
 
@@ -88,6 +90,12 @@ export default function Login() {
           <h1 className="vc-form-title">Bienvenido </h1>
           <p className="vc-form-sub">Introduce tus credenciales para continuar</p>
 
+          {resetSuccess && (
+            <p style={{ color: "#0f6e84", marginBottom: "16px", fontSize: "14px" }}>
+              Contraseña actualizada. Ya puedes iniciar sesión.
+            </p>
+          )}
+
           <form onSubmit={handleSubmit}>
             <div className="vc-field">
               <label htmlFor="usuario">Nombre de usuario <span className="req">*</span></label>
@@ -128,6 +136,13 @@ export default function Login() {
               </div>
             </div>
 
+            <div className="vc-row-options">
+              <span />
+              <Link to="/olvide-contrasena" className="vc-forgot">
+                ¿Olvidaste tu contraseña?
+              </Link>
+            </div>
+
             {error && (
               <div style={{ color: "red", marginBottom: "12px", fontSize: "14px" }}>
                 {error}
@@ -138,7 +153,11 @@ export default function Login() {
               {loading ? "Checking..." : "Ingresar"}
             </button>
 
-            
+            <p style={{ textAlign: "center", marginTop: 16, fontSize: 13 }}>
+              ¿No tienes cuenta? <Link to="/registrarse" className="vc-forgot">Regístrate</Link>
+            </p>
+
+
 
             <SecureNote />
           </form>

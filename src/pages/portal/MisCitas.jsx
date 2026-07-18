@@ -4,6 +4,7 @@ import { CalendarDays, Plus } from "lucide-react";
 import Swal from "sweetalert2";
 import { getMisCitas, cancelarCita } from "../../services/portalService.js";
 import { formatFecha } from "../../utils/vacunaStatus.js";
+import { formatRD } from "../../utils/money.js";
 
 const ESTADOS = {
   PENDIENTE: { label: "Pendiente", tone: "warning" },
@@ -108,10 +109,16 @@ export default function MisCitas() {
                     {cita.prioridad === "URGENTE" ? " · Urgente" : ""}
                   </p>
                   {cita.motivo && <p className="cita-meta">{cita.motivo}</p>}
+                  {cita.precioEstimado != null && (
+                    <p className="cita-meta">{formatRD(cita.precioEstimado)}</p>
+                  )}
                 </div>
 
                 <div className="cita-side">
                   <span className={`badge badge--${estado.tone}`}>{estado.label}</span>
+                  {cita.mascotaAgresiva && (
+                    <span className="badge badge--danger">Agresiva</span>
+                  )}
                   {esCancelable(cita) && (
                     <button
                       type="button"

@@ -19,6 +19,7 @@ import {
   completarCita,
   getDoctores,
 } from "../services/agendaService.js";
+import { formatRD } from "../utils/money.js";
 
 const ESTADOS = {
   PENDIENTE: { label: "Pendiente", tone: "warning" },
@@ -340,11 +341,22 @@ export default function Agenda() {
                     <span className={`${styles.badge} ${styles[`badge_${estado.tone}`]}`}>
                       {estado.label}
                     </span>
+                    {cita.mascotaAgresiva && (
+                      <span className={`${styles.badge} ${styles.badge_danger}`}>
+                        Agresiva
+                      </span>
+                    )}
                   </div>
                   <p className={styles.citaMeta}>
                     <PawPrint size={14} /> {cita.mascotaNombre || "—"}
                     <span className={styles.dot}>·</span>
                     <User size={14} /> {cita.clienteNombre || "—"}
+                    {cita.precioEstimado != null && (
+                      <>
+                        <span className={styles.dot}>·</span>
+                        {formatRD(cita.precioEstimado)}
+                      </>
+                    )}
                   </p>
                   {cita.motivo && (
                     <p className={styles.citaReason}>“{cita.motivo}”</p>
