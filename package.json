@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "start": "node backend/server.js",
-    "seed": "node backend/prisma/seed.js"
+    "seed": "node backend/prisma/seed.js",
+    "postinstall": "cd backend && npx prisma generate"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
