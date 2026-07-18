@@ -20,26 +20,33 @@ dotenv.config({ path: path.join(__dirname, ".env") });
 
 const app = express();
 
-// Comma-separated list of allowed production origins, e.g.
-// "https://vetcare.vercel.app,https://vetcare-git-main-you.vercel.app"
+// Comma-separated list of explicitly allowed origins (e.g. a custom domain),
+// on top of the Vercel/localhost patterns handled below.
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || "")
   .split(",")
   .map((o) => o.trim())
   .filter(Boolean);
 
+// Vercel serves this project under several URLs at once — the production
+// alias (vetcare-drab...), the git-branch URL (vetcare-git-main-...), and a
+// fresh per-deploy preview URL each build — all sharing the
+// "vetcare-*.vercel.app" shape. Allow them all so CORS doesn't break every
+// time Vercel mints a new URL. Set ALLOWED_ORIGINS for anything outside this
+// (e.g. a custom domain).
+const vercelOriginPattern = /^https:\/\/vetcare-[a-z0-9-]+\.vercel\.app$/;
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true; // non-browser clients (curl, server-to-server)
+  if (origin.startsWith("http://localhost")) return true;
+  if (allowedOrigins.includes(origin)) return true;
+  if (vercelOriginPattern.test(origin)) return true;
+  return false;
+}
+
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-
-      if (origin.startsWith("http://localhost")) {
-        return callback(null, true);
-      }
-
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
+      if (isAllowedOrigin(origin)) return callback(null, true);
       callback(new Error("Not allowed by CORS"));
     },
   })
