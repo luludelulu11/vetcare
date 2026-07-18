@@ -42,10 +42,14 @@ async function parseError(res) {
   return error;
 }
 
-async function get(path) {
-  const res = await fetch(`${API_BASE}${path}`, { headers: authHeaders() });
+async function getAbsolute(url) {
+  const res = await fetch(url, { headers: authHeaders() });
   if (!res.ok) throw await parseError(res);
   return res.json();
+}
+
+async function get(path) {
+  return getAbsolute(`${API_BASE}${path}`);
 }
 
 async function send(path, method, body) {
@@ -66,6 +70,13 @@ export const getCitas = (params = {}) => {
 };
 
 export const crearCita = (payload) => send("/citas", "POST", payload);
-export const confirmarCita = (id) => send(`/citas/${id}/confirmar`, "PATCH");
+export const confirmarCita = (id, doctorId) =>
+  send(`/citas/${id}/confirmar`, "PATCH", doctorId ? { doctorId } : undefined);
 export const cancelarCita = (id) => send(`/citas/${id}/cancelar`, "PATCH");
 export const completarCita = (id) => send(`/citas/${id}/completar`, "PATCH");
+
+// GET /api/doctores — used to populate the doctor picker when confirming a cita.
+export const getDoctores = () => getAbsolute(`${API_URL}/api/doctores`);
+
+// Doctor's own schedule — confirmed/completed citas assigned to them.
+export const getMiAgenda = () => getAbsolute(`${API_URL}/api/mi-agenda`);

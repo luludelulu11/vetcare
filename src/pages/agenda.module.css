@@ -29,6 +29,31 @@
   padding: 28px 20px 60px;
 }
 
+/* Dark mode — mirrors the app-wide palette in src/styles/variables.css so
+   this page follows the global toggle instead of staying stuck in light. */
+:root[data-theme="dark"] .page {
+  --brand: #4ba5c8;
+  --brand-mid: #6cc0dd;
+  --surface: #17252c;
+  --cream: #0f181c;
+  --cream-tint: #1a282fdd;
+  --text-primary: #e8f1f2;
+  --text-secondary: #c3d5d7;
+  --text-tertiary: #7f979e;
+  --border-default: #263a43;
+  --coral: #e0906b;
+  --ok: #7fe0b8;
+  --ok-bg: #0e3a2a;
+  --warning: #e3b45e;
+  --warning-bg: #322a12;
+  --danger: #f3a0a0;
+  --danger-bg: #3d1414;
+  --neutral: #93a2b5;
+  --neutral-bg: #1b2b31;
+  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 6px 22px rgba(0, 0, 0, 0.45);
+}
+
 .container {
   max-width: 860px;
   margin: 0 auto;
