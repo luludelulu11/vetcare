@@ -11,6 +11,7 @@ import dns from "dns";
 import { fileURLToPath } from "url";
 import rateLimit from "express-rate-limit";
 import nodemailer from "nodemailer";
+import { Resend } from "resend";
 import cron from "node-cron";
 import prisma from "./prisma/client.js";
 
@@ -170,6 +171,30 @@ dns.promises
     console.error("Could not resolve mail host to IPv4; using hostname:", err.message);
   });
 
+// Cloud hosts (Railway) commonly block outbound SMTP ports, so prefer an
+// HTTP email API (Resend, port 443) when configured; fall back to SMTP for
+// local dev. All email goes through sendEmail() so callers don't care which.
+const resendClient = process.env.RESEND_API_KEY
+  ? new Resend(process.env.RESEND_API_KEY)
+  : null;
+
+// Public logo URL for email templates (Resend has no inline-CID attachments;
+// a hosted image works for both providers). Served from the deployed frontend.
+const LOGO_URL = `${process.env.FRONTEND_URL || "http://localhost:5173"}/logo-verde.png`;
+
+async function sendEmail({ to, subject, html }) {
+  const from = process.env.MAIL_FROM || "VetCare <onboarding@resend.dev>";
+
+  if (resendClient) {
+    const { error } = await resendClient.emails.send({ from, to, subject, html });
+    if (error) throw new Error(error.message || "Resend send failed");
+    if (process.env.NODE_ENV !== "test") console.log(`Email sent via Resend to ${to}`);
+    return;
+  }
+
+  await mailTransporter.sendMail({ from, to, subject, html });
+}
+
 function parseJsonArray(value) {
   if (!value) return [];
   if (Array.isArray(value)) return value;
@@ -242,7 +267,7 @@ async function enviarCorreoConsulta({ row, tipo, marcarNotificado = true }) {
       <div style="max-width:600px; margin:0 auto; background:#ffffff; border-radius:14px; overflow:hidden; border:1px solid #e5e7eb;">
 
         <div style="padding:28px 32px 10px; text-align:center;">
-          <img src="cid:logoVerde" width="72" alt="VetCare" style="display:block; margin:0 auto 12px;" />
+          <img src="${LOGO_URL}" width="72" alt="VetCare" style="display:block; margin:0 auto 12px;" />
           <h1 style="margin:0; font-size:28px; color:#2a9d8f; font-weight:700;">VetCare</h1>
           <p style="margin:8px 0 0; color:#6b7280; font-size:14px;">
             Cuidado veterinario con seguimiento oportuno
@@ -285,19 +310,7 @@ async function enviarCorreoConsulta({ row, tipo, marcarNotificado = true }) {
     </div>
   `;
 
-  await mailTransporter.sendMail({
-    from: process.env.MAIL_FROM,
-    to: row.cliente_correo,
-    subject: config.subject,
-    html,
-    attachments: [
-      {
-        filename: "logo-verde.png",
-        path: path.join(__dirname, "../public/logo-verde.png"),
-        cid: "logoVerde",
-      },
-    ],
-  });
+  await sendEmail({ to: row.cliente_correo, subject: config.subject, html });
 
   if (marcarNotificado) {
     await prisma.consultation.update({
@@ -1763,7 +1776,7 @@ function passwordResetEmailHtml(link) {
     <div style="font-family: Arial, Helvetica, sans-serif; background-color:#f5f7fa; padding:24px;">
       <div style="max-width:600px; margin:0 auto; background:#ffffff; border-radius:14px; overflow:hidden; border:1px solid #e5e7eb;">
         <div style="padding:28px 32px 10px; text-align:center;">
-          <img src="cid:logoVerde" width="72" alt="VetCare" style="display:block; margin:0 auto 12px;" />
+          <img src="${LOGO_URL}" width="72" alt="VetCare" style="display:block; margin:0 auto 12px;" />
           <h1 style="margin:0; font-size:28px; color:#2a9d8f; font-weight:700;">VetCare</h1>
         </div>
         <div style="padding:24px 32px 32px; color:#1f2937; line-height:1.6;">
@@ -1833,18 +1846,10 @@ app.post("/api/auth/forgot-password", authLimiter, async (req, res) => {
       console.log(`Password reset link for ${username}: ${link}`);
 
       try {
-        await mailTransporter.sendMail({
-          from: process.env.MAIL_FROM,
+        await sendEmail({
           to: email,
           subject: "Restablecer tu contraseña de VetCare",
           html: passwordResetEmailHtml(link),
-          attachments: [
-            {
-              filename: "logo-verde.png",
-              path: path.join(__dirname, "../public/logo-verde.png"),
-              cid: "logoVerde",
-            },
-          ],
         });
       } catch (mailError) {
         console.error("Error sending password reset email:", mailError);
@@ -2049,7 +2054,7 @@ app.post("/api/consultas/:id/enviar-recordatorio", requireAuth, async (req, res)
         <div style="max-width:600px; margin:0 auto; background:#ffffff; border-radius:14px; overflow:hidden; border:1px solid #e5e7eb;">
 
           <div style="padding:28px 32px 10px; text-align:center;">
-            <img src="cid:logoVerde" width="72" alt="VetCare" style="display:block; margin:0 auto 12px;" />
+            <img src="${LOGO_URL}" width="72" alt="VetCare" style="display:block; margin:0 auto 12px;" />
             <h1 style="margin:0; font-size:28px; color:#2a9d8f; font-weight:700;">VetCare</h1>
             <p style="margin:8px 0 0; color:#6b7280; font-size:14px;">
               Cuidado veterinario con seguimiento oportuno
@@ -2092,18 +2097,10 @@ app.post("/api/consultas/:id/enviar-recordatorio", requireAuth, async (req, res)
       </div>
     `;
 
-    await mailTransporter.sendMail({
-      from: process.env.MAIL_FROM,
+    await sendEmail({
       to: row.cliente_correo,
       subject: `Recordatorio de consulta - ${row.mascota_nombre}`,
       html,
-      attachments: [
-        {
-          filename: "logo-verde.png",
-          path: path.join(__dirname, "../public/logo-verde.png"),
-          cid: "logoVerde",
-        },
-      ],
     });
 
     return res.json({
@@ -2238,7 +2235,7 @@ async function enviarCorreoCitaEstado({ appointment, tipo, motivo }) {
     <div style="font-family: Arial, Helvetica, sans-serif; background-color:#f5f7fa; padding:24px;">
       <div style="max-width:600px; margin:0 auto; background:#ffffff; border-radius:14px; overflow:hidden; border:1px solid #e5e7eb;">
         <div style="padding:28px 32px 10px; text-align:center;">
-          <img src="cid:logoVerde" width="72" alt="VetCare" style="display:block; margin:0 auto 12px;" />
+          <img src="${LOGO_URL}" width="72" alt="VetCare" style="display:block; margin:0 auto 12px;" />
           <h1 style="margin:0; font-size:28px; color:#2a9d8f; font-weight:700;">VetCare</h1>
         </div>
         <div style="padding:24px 32px 32px; color:#1f2937; line-height:1.6;">
@@ -2265,19 +2262,7 @@ async function enviarCorreoCitaEstado({ appointment, tipo, motivo }) {
   `;
 
   try {
-    await mailTransporter.sendMail({
-      from: process.env.MAIL_FROM,
-      to: email,
-      subject,
-      html,
-      attachments: [
-        {
-          filename: "logo-verde.png",
-          path: path.join(__dirname, "../public/logo-verde.png"),
-          cid: "logoVerde",
-        },
-      ],
-    });
+    await sendEmail({ to: email, subject, html });
     console.log(`Correo de cita (${tipo}) enviado a ${email}. Cita: ${appointment.id}`);
   } catch (mailError) {
     console.error(`Error enviando correo de cita ${appointment.id}:`, mailError);
