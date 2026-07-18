@@ -10,9 +10,12 @@ export function roleHome(role) {
   switch (role) {
     case "ADMIN":
     case "DOCTOR":
-      return "/menu";
     case "STAFF":
-      return "/agenda";
+      // All staff roles land on the full console (sidebar nav, theme toggle,
+      // logout). Menu.jsx filters what each role sees. STAFF previously landed
+      // on the bare /agenda page, which has no navigation/chrome and left the
+      // secretary unable to reach clients, pets, or clinical history.
+      return "/menu";
     case "CLIENT":
       return "/inicio";
     default:
