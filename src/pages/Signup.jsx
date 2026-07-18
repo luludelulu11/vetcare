@@ -125,7 +125,7 @@ export default function Signup() {
 
   return (
     <div className="vc-body">
-      <div className="vc-card">
+      <div className="vc-card vc-card--wide">
         <div className="vc-card-header">
           <div className="vc-brand">
             <div className="vc-brand-icon">
@@ -149,6 +149,7 @@ export default function Signup() {
           </p>
 
           <form onSubmit={handleSubmit}>
+            <div className="vc-form-grid">
             <div className="vc-field">
               <label htmlFor="nombre">Nombre <span className="req">*</span></label>
               <div className="vc-input-wrap">
@@ -190,9 +191,11 @@ export default function Signup() {
               <div className="vc-input-wrap">
                 <input
                   type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
                   id="cedula"
                   name="cedula"
-                  placeholder="Cédula"
+                  placeholder="Cédula (11 dígitos)"
                   value={formData.cedula}
                   onChange={handleChange}
                   maxLength={11}
@@ -209,6 +212,8 @@ export default function Signup() {
               <div className="vc-input-wrap">
                 <input
                   type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
                   id="telefono"
                   name="telefono"
                   placeholder="Teléfono"
@@ -223,7 +228,7 @@ export default function Signup() {
               )}
             </div>
 
-            <div className="vc-field">
+            <div className="vc-field vc-field--full">
               <label htmlFor="correo">Correo <span className="req">*</span></label>
               <div className="vc-input-wrap">
                 <input
@@ -288,6 +293,7 @@ export default function Signup() {
               {fieldErrors.confirmPassword && (
                 <small style={{ color: "#e05c4b" }}>{fieldErrors.confirmPassword}</small>
               )}
+            </div>
             </div>
 
             {error && (
