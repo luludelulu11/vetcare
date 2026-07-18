@@ -179,6 +179,8 @@ export default function CreateAccountVetCare() {
           email: formData.email.trim(),
           password: formData.password.trim(),
           role: formData.role,
+          firstName: formData.nombre.trim(),
+          lastName: formData.apellido.trim(),
           fullName:
             formData.role === "DOCTOR"
               ? `${formData.nombre.trim()} ${formData.apellido.trim()}`.trim()

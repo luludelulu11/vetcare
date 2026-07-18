@@ -27,6 +27,15 @@ async function get(path) {
   return res.json();
 }
 
+async function getAbsolute(url) {
+  const res = await fetch(url, { headers: authHeaders() });
+  if (!res.ok) throw await parseError(res);
+  return res.json();
+}
+
+// Not under /api/portal — shared by the staff and client booking flows.
+export const getAppointmentTypes = () => getAbsolute(`${API_URL}/api/appointment-types`);
+
 async function send(path, method, body) {
   const res = await fetch(`${API_BASE}${path}`, {
     method,
@@ -43,6 +52,19 @@ export const getMiMascota = (id) => get(`/mascotas/${id}`);
 export const getMiMascotaConsultas = (id) => get(`/mascotas/${id}/consultas`);
 export const crearMascota = (payload) => send("/mascotas", "POST", payload);
 export const getMiPerfil = () => get("/perfil");
+
+export async function subirFotoPerfil(file) {
+  const formData = new FormData();
+  formData.append("foto", file);
+
+  const res = await fetch(`${API_BASE}/perfil/foto`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: formData,
+  });
+  if (!res.ok) throw await parseError(res);
+  return res.json();
+}
 
 /* ---------- Citas ----------
    Backend contract (pending):

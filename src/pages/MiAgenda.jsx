@@ -4,6 +4,7 @@ import { CalendarDays, Clock, PawPrint, User, CheckCheck, RefreshCw } from "luci
 import Swal from "sweetalert2";
 import styles from "./agenda.module.css";
 import { getMiAgenda, completarCita } from "../services/agendaService.js";
+import { formatRD } from "../utils/money.js";
 
 const PRIORIDADES = {
   NORMAL: { label: "Normal", tone: "neutral" },
@@ -193,11 +194,22 @@ export default function MiAgenda() {
                     >
                       {cita.estado === "COMPLETADA" ? "Completada" : "Confirmada"}
                     </span>
+                    {cita.mascotaAgresiva && (
+                      <span className={`${styles.badge} ${styles.badge_danger}`}>
+                        Agresiva
+                      </span>
+                    )}
                   </div>
                   <p className={styles.citaMeta}>
                     <PawPrint size={14} /> {cita.mascotaNombre || "—"}
                     <span className={styles.dot}>·</span>
                     <User size={14} /> {cita.clienteNombre || "—"}
+                    {cita.precioEstimado != null && (
+                      <>
+                        <span className={styles.dot}>·</span>
+                        {formatRD(cita.precioEstimado)}
+                      </>
+                    )}
                   </p>
                   {cita.motivo && <p className={styles.citaReason}>“{cita.motivo}”</p>}
                 </div>

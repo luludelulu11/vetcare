@@ -160,6 +160,24 @@ const baseMenuSections = [
       },
     ],
   },
+  {
+    label: "Configuración",
+    roles: ["ADMIN"],
+    items: [
+      {
+        id: "admin-servicios",
+        path: "/admin/servicios",
+        roles: ["ADMIN"],
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="1" x2="12" y2="23" />
+            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+          </svg>
+        ),
+        label: "Servicios y precios",
+      },
+    ],
+  },
 ];
 
 const baseQuickActions = [
@@ -276,15 +294,28 @@ const baseQuickActions = [
   },
 ];
 
-const GREETING_BY_ROLE = {
+const FALLBACK_GREETING_BY_ROLE = {
   ADMIN: "Bienvenido de nuevo, Administrador/a",
   DOCTOR: "Bienvenido de nuevo, Doctor/a",
   STAFF: "Bienvenido de nuevo",
 };
 
+function greetingFor(role, user) {
+  const firstName = user?.first_name;
+  if (firstName) return `Bienvenido de nuevo, ${firstName}`;
+  return FALLBACK_GREETING_BY_ROLE[role] || "Bienvenido de nuevo";
+}
+
+function initialsFor(user) {
+  const first = user?.first_name?.[0] || "";
+  const last = user?.last_name?.[0] || "";
+  const initials = `${first}${last}`.toUpperCase();
+  return initials || (user?.username?.[0]?.toUpperCase() ?? "?");
+}
+
 export default function MenuPage() {
   const navigate = useNavigate();
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeItem, setActiveItem] = useState("");
 
@@ -631,16 +662,29 @@ export default function MenuPage() {
               <span className="topbar__badge">{counts.alertas}</span>
             )}
           </button>
-          <div className="topbar__avatar">DR</div>
+          <button
+            type="button"
+            className="topbar__avatar"
+            onClick={() => navigate("/perfil")}
+            aria-label="Mi perfil"
+          >
+            {user?.profile_photo_url ? (
+              <img
+                src={`${API_URL}${user.profile_photo_url}`}
+                alt=""
+                className="topbar__avatar-img"
+              />
+            ) : (
+              initialsFor(user)
+            )}
+          </button>
         </div>
       </header>
 
       <main className="main">
         <div className="main__greeting">
           <p className="main__greeting-sub">{capitalizedDate}</p>
-          <h1 className="main__greeting-title">
-            {GREETING_BY_ROLE[role] || "Bienvenido de nuevo"}
-          </h1>
+          <h1 className="main__greeting-title">{greetingFor(role, user)}</h1>
         </div>
 
         <div className="stats">

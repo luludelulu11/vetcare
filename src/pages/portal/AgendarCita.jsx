@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Swal from "sweetalert2";
-import { getMisMascotas, crearCita } from "../../services/portalService.js";
+import {
+  getMisMascotas,
+  crearCita,
+  getAppointmentTypes,
+} from "../../services/portalService.js";
+import { formatRD } from "../../utils/money.js";
 
-const SERVICIOS = ["Consulta", "Vacunación", "Grooming"];
 const PRIORIDADES = [
   { value: "NORMAL", label: "Normal" },
   { value: "URGENTE", label: "Urgente" },
@@ -22,6 +26,8 @@ export default function AgendarCita() {
   const [searchParams] = useSearchParams();
 
   const [mascotas, setMascotas] = useState([]);
+  const [tiposServicio, setTiposServicio] = useState([]);
+  const [aggressivePetSurcharge, setAggressivePetSurcharge] = useState(0);
   const [status, setStatus] = useState("loading");
   const [loadError, setLoadError] = useState("");
 
@@ -31,17 +37,20 @@ export default function AgendarCita() {
   const [fecha, setFecha] = useState("");
   const [hora, setHora] = useState("");
   const [motivo, setMotivo] = useState("");
+  const [mascotaAgresiva, setMascotaAgresiva] = useState(false);
 
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     let alive = true;
-    getMisMascotas()
-      .then((data) => {
+    Promise.all([getMisMascotas(), getAppointmentTypes()])
+      .then(([mascotasData, tiposData]) => {
         if (!alive) return;
-        setMascotas(data);
-        if (data.length === 1) setMascotaId(String(data[0].id));
+        setMascotas(mascotasData);
+        if (mascotasData.length === 1) setMascotaId(String(mascotasData[0].id));
+        setTiposServicio(tiposData.types || []);
+        setAggressivePetSurcharge(Number(tiposData.aggressivePetSurcharge || 0));
         setStatus("ready");
       })
       .catch((e) => {
@@ -53,6 +62,10 @@ export default function AgendarCita() {
       alive = false;
     };
   }, []);
+
+  const selectedTipo = tiposServicio.find((t) => t.name === servicio);
+  const basePrice = Number(selectedTipo?.price || 0);
+  const totalEstimado = basePrice + (mascotaAgresiva ? aggressivePetSurcharge : 0);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -67,7 +80,15 @@ export default function AgendarCita() {
 
     try {
       setSaving(true);
-      await crearCita({ mascotaId, servicio, prioridad, fecha, hora, motivo: motivo.trim() });
+      await crearCita({
+        mascotaId,
+        servicio,
+        prioridad,
+        fecha,
+        hora,
+        motivo: motivo.trim(),
+        mascotaAgresiva,
+      });
 
       await Swal.fire({
         icon: "success",
@@ -120,14 +141,14 @@ export default function AgendarCita() {
 
           <p className="cita-label">Servicio</p>
           <div className="chip-row">
-            {SERVICIOS.map((s) => (
+            {tiposServicio.map((t) => (
               <button
-                key={s}
+                key={t.id}
                 type="button"
-                className={`chip-option ${servicio === s ? "chip-option--active" : ""}`}
-                onClick={() => setServicio(s)}
+                className={`chip-option ${servicio === t.name ? "chip-option--active" : ""}`}
+                onClick={() => setServicio(t.name)}
               >
-                {s}
+                {t.name} — {formatRD(t.price)}
               </button>
             ))}
           </div>
@@ -147,6 +168,30 @@ export default function AgendarCita() {
               </button>
             ))}
           </div>
+
+          <p className="cita-label">¿Tu mascota es agresiva?</p>
+          <div className="chip-row">
+            <button
+              type="button"
+              className={`chip-option ${!mascotaAgresiva ? "chip-option--active" : ""}`}
+              onClick={() => setMascotaAgresiva(false)}
+            >
+              No
+            </button>
+            <button
+              type="button"
+              className={`chip-option chip-option--danger ${mascotaAgresiva ? "chip-option--active" : ""}`}
+              onClick={() => setMascotaAgresiva(true)}
+            >
+              Sí
+            </button>
+          </div>
+          {mascotaAgresiva && (
+            <p className="cita-note" style={{ textAlign: "left", marginTop: 6 }}>
+              Se aplicará un recargo de {formatRD(aggressivePetSurcharge)} — puede requerirse
+              un sedante para la seguridad de tu mascota y del equipo veterinario.
+            </p>
+          )}
 
           <p className="cita-label">Fecha</p>
           <input
@@ -179,6 +224,17 @@ export default function AgendarCita() {
             value={motivo}
             onChange={(e) => setMotivo(e.target.value)}
           />
+
+          {servicio && (
+            <div className="portal-card" style={{ marginTop: 18 }}>
+              <p className="cita-meta" style={{ margin: 0 }}>
+                Total estimado
+              </p>
+              <p style={{ margin: "4px 0 0", fontSize: 22, fontWeight: 700 }}>
+                {formatRD(totalEstimado)}
+              </p>
+            </div>
+          )}
 
           {formError && <div className="portal-error">{formError}</div>}
 
