@@ -3,7 +3,6 @@ import cors from "cors";
 import dotenv from "dotenv";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import mysql from "mysql2/promise";
 import crypto from "crypto";
 import multer from "multer";
 import fs from "fs";
@@ -12,7 +11,7 @@ import { fileURLToPath } from "url";
 import rateLimit from "express-rate-limit";
 import nodemailer from "nodemailer";
 import cron from "node-cron";
-
+import prisma from "./prisma/client.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,12 +20,23 @@ dotenv.config({ path: path.join(__dirname, ".env") });
 
 const app = express();
 
+// Comma-separated list of allowed production origins, e.g.
+// "https://vetcare.vercel.app,https://vetcare-git-main-you.vercel.app"
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || "")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
 
       if (origin.startsWith("http://localhost")) {
+        return callback(null, true);
+      }
+
+      if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
 
@@ -39,12 +49,6 @@ app.use(express.json());
 
 const distPath = path.join(__dirname, "../dist");
 app.use(express.static(distPath));
-
-app.get("/test", (req, res) => {
-  res.json({ ok: true, message: "backend funcionando correctamente" });
-});
-
-app.use(express.json());
 
 const uploadsBaseDir = path.join(__dirname, "uploads");
 const consultasUploadsDir = path.join(uploadsBaseDir, "consultas");
@@ -75,19 +79,6 @@ const upload = multer({
   limits: {
     fileSize: 15 * 1024 * 1024,
     files: 10,
-  },
-});
-
-const pool = mysql.createPool({
-  host: process.env.DB_HOST,
-  port: Number(process.env.DB_PORT) || 3306,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  waitForConnections: true,
-  connectionLimit: 10,
-  ssl: {
-    rejectUnauthorized: false,
   },
 });
 
@@ -143,7 +134,7 @@ function getReminderConfig(tipo, row) {
         "Le recomendamos comunicarse con la clínica a la mayor brevedad para reprogramar la cita y dar continuidad a la atención médica.",
       fieldLabel: "Fecha registrada",
       fieldValue: formatDateForEmail(row.proxima_cita),
-      notifiedColumn: "atraso_notificado_at",
+      notifiedField: "atrasoNotificadoAt",
       logLabel: "consulta atrasada",
     };
   }
@@ -157,7 +148,7 @@ function getReminderConfig(tipo, row) {
         "En caso de no poder asistir en el horario indicado, por favor comuníquese con nosotros con anticipación para ayudarle a reprogramar.",
       fieldLabel: "Fecha y hora de la cita",
       fieldValue: formatDateForEmail(row.proxima_cita),
-      notifiedColumn: "recordatorio_manana_enviado_at",
+      notifiedField: "recordatorioMananaEnviadoAt",
       logLabel: "cita de mañana",
     };
   }
@@ -165,18 +156,13 @@ function getReminderConfig(tipo, row) {
   throw new Error(`Tipo de recordatorio no soportado: ${tipo}`);
 }
 
-async function enviarCorreoConsulta({
-  connection,
-  row,
-  tipo,
-  marcarNotificado = true,
-}) {
+async function enviarCorreoConsulta({ row, tipo, marcarNotificado = true }) {
   const config = getReminderConfig(tipo, row);
 
   const html = `
     <div style="font-family: Arial, Helvetica, sans-serif; background-color:#f5f7fa; padding:24px;">
       <div style="max-width:600px; margin:0 auto; background:#ffffff; border-radius:14px; overflow:hidden; border:1px solid #e5e7eb;">
-        
+
         <div style="padding:28px 32px 10px; text-align:center;">
           <img src="cid:logoVerde" width="72" alt="VetCare" style="display:block; margin:0 auto 12px;" />
           <h1 style="margin:0; font-size:28px; color:#2a9d8f; font-weight:700;">VetCare</h1>
@@ -236,15 +222,10 @@ async function enviarCorreoConsulta({
   });
 
   if (marcarNotificado) {
-    await connection.execute(
-      `
-      UPDATE consultas
-      SET ${config.notifiedColumn} = NOW(),
-          updated_at = NOW()
-      WHERE id = ?
-      `,
-      [row.id]
-    );
+    await prisma.consultation.update({
+      where: { id: row.id },
+      data: { [config.notifiedField]: new Date() },
+    });
   }
 
   console.log(
@@ -252,48 +233,47 @@ async function enviarCorreoConsulta({
   );
 }
 
+function consultaReminderRow(c) {
+  return {
+    id: c.id,
+    fecha: c.fecha,
+    proxima_cita: c.proximaCita,
+    motivo: c.motivo,
+    estado: c.estado,
+    client_id: c.clientId,
+    cliente_correo: c.client.email,
+    cliente_nombre: `${c.client.firstName} ${c.client.lastName}`,
+    mascota_nombre: c.pet.name,
+  };
+}
+
 async function enviarCorreosConsultasManana() {
-  let connection;
-
   try {
-    connection = await pool.getConnection();
+    const tomorrowStart = new Date();
+    tomorrowStart.setHours(0, 0, 0, 0);
+    tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+    const dayAfterStart = new Date(tomorrowStart);
+    dayAfterStart.setDate(dayAfterStart.getDate() + 1);
 
-    const [rows] = await connection.execute(
-      `
-      SELECT
-        c.id,
-        c.fecha,
-        c.proxima_cita,
-        c.motivo,
-        c.estado,
-        c.client_id,
-        cl.email AS cliente_correo,
-        CONCAT(cl.first_name, ' ', cl.last_name) AS cliente_nombre,
-        p.name AS mascota_nombre
-      FROM consultas c
-      INNER JOIN clients cl ON cl.id = c.client_id
-      INNER JOIN pets p ON p.id = c.pet_id
-      WHERE c.deleted_at IS NULL
-        AND cl.deleted_at IS NULL
-        AND p.deleted_at IS NULL
-        AND c.proxima_cita IS NOT NULL
-        AND DATE(c.proxima_cita) = DATE_ADD(CURDATE(), INTERVAL 1 DAY)
-        AND c.recordatorio_manana_enviado_at IS NULL
-        AND cl.email IS NOT NULL
-        AND TRIM(cl.email) <> ''
-      ORDER BY c.proxima_cita ASC
-      `
-    );
+    const consultas = await prisma.consultation.findMany({
+      where: {
+        deletedAt: null,
+        proximaCita: { gte: tomorrowStart, lt: dayAfterStart },
+        recordatorioMananaEnviadoAt: null,
+        client: { deletedAt: null, email: { not: null } },
+        pet: { deletedAt: null },
+      },
+      include: { client: true, pet: true },
+      orderBy: { proximaCita: "asc" },
+    });
 
-    for (const row of rows) {
+    for (const c of consultas) {
+      if (!c.client.email || !c.client.email.trim()) continue;
+
+      const row = consultaReminderRow(c);
+
       try {
-        await enviarCorreoConsulta({
-          connection,
-          row,
-          tipo: "manana",
-          marcarNotificado: true,
-        });
-
+        await enviarCorreoConsulta({ row, tipo: "manana", marcarNotificado: true });
         console.log(`Correo de cita para mañana enviado. Consulta: ${row.id}`);
       } catch (mailError) {
         console.error(`Error enviando correo de mañana ${row.id}:`, mailError);
@@ -301,13 +281,48 @@ async function enviarCorreosConsultasManana() {
     }
   } catch (error) {
     console.error("Error revisando citas de mañana:", error);
-  } finally {
-    if (connection) {
-      connection.release();
-    }
   }
 }
 
+async function enviarCorreosConsultasAtrasadas() {
+  try {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const consultas = await prisma.consultation.findMany({
+      where: {
+        deletedAt: null,
+        proximaCita: { not: null, lt: todayStart },
+        atrasoNotificadoAt: null,
+        client: { deletedAt: null, email: { not: null } },
+        pet: { deletedAt: null },
+      },
+      include: { client: true, pet: true },
+      orderBy: { proximaCita: "asc" },
+    });
+
+    for (const c of consultas) {
+      if (!c.client.email || !c.client.email.trim()) continue;
+
+      const row = consultaReminderRow(c);
+
+      try {
+        await enviarCorreoConsulta({ row, tipo: "atrasada", marcarNotificado: true });
+        console.log(
+          `Correo enviado por consulta atrasada. Consulta: ${row.id}, email: ${row.cliente_correo}`
+        );
+      } catch (mailError) {
+        console.error(`Error enviando correo de consulta atrasada ${row.id}:`, mailError);
+      }
+    }
+  } catch (error) {
+    console.error("Error revisando consultas atrasadas:", error);
+  }
+}
+
+// =============================
+// AUTH / ROLE GUARDS
+// =============================
 function requireAuth(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
@@ -317,8 +332,6 @@ function requireAuth(req, res, next) {
         message: "No autorizado. Token requerido.",
       });
     }
-
-   
 
     const token = authHeader.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -332,13 +345,30 @@ function requireAuth(req, res, next) {
   }
 }
 
-function requireAdmin(req, res, next) {
-  if (!req.user || req.user.role !== "ADMIN") {
+function requireRole(...roles) {
+  return (req, res, next) => {
+    if (!req.user || !roles.includes(req.user.role)) {
+      return res.status(403).json({
+        message: "Acceso denegado.",
+      });
+    }
+    next();
+  };
+}
+
+const requireAdmin = requireRole("ADMIN");
+// Front-desk (secretary) endpoints — any staff role.
+const requireStaff = requireRole("ADMIN", "DOCTOR", "STAFF");
+// Clinical writes (consultations, prescriptions) — doctors and admins only.
+// STAFF may still read clinical history via the plain requireStaff routes below.
+const requireClinical = requireRole("ADMIN", "DOCTOR");
+
+function requireClient(req, res, next) {
+  if (!req.user || req.user.role !== "CLIENT" || !req.user.client_id) {
     return res.status(403).json({
-      message: "Acceso denegado. Solo administradores.",
+      message: "Acceso exclusivo para clientes del portal.",
     });
   }
-
   next();
 }
 
@@ -363,22 +393,13 @@ const authLimiter = rateLimit({
   },
 });
 
-
-
 app.use("/api", apiLimiter);
-
-// =============================
-// ROOT
-// =============================
 
 // =============================
 // TEST ROUTE
 // =============================
 app.get("/test", (req, res) => {
-  res.json({
-    ok: true,
-    message: "backend funcionando correctamente",
-  });
+  res.json({ ok: true, message: "backend funcionando correctamente" });
 });
 
 // =============================
@@ -394,62 +415,37 @@ app.post("/api/clientes", requireAuth, async (req, res) => {
       });
     }
 
-    const [existingClients] = await pool.execute(
-      `
-      SELECT id
-      FROM clients
-      WHERE national_id = ?
-        AND deleted_at IS NULL
-      LIMIT 1
-      `,
-      [cedula.trim()]
-    );
+    const existingClient = await prisma.client.findFirst({
+      where: { nationalId: cedula.trim(), deletedAt: null },
+      select: { id: true },
+    });
 
-    if (existingClients.length > 0) {
+    if (existingClient) {
       return res.status(409).json({
         message: "Ya existe un cliente con dicha cédula",
       });
     }
 
-    const clientId = crypto.randomUUID();
-
     const nameParts = nombre.trim().split(" ");
     const firstName = nameParts[0];
     const lastName = nameParts.slice(1).join(" ") || "-";
 
-    await pool.execute(
-      `
-      INSERT INTO clients (
-        id,
-        first_name,
-        last_name,
-        national_id,
-        email,
-        phone_primary,
-        phone_secondary,
-        address_line1,
-        deleted_at,
-        created_at,
-        updated_at
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NOW(), NOW())
-      `,
-      [
-        clientId,
+    const client = await prisma.client.create({
+      data: {
         firstName,
         lastName,
-        cedula.trim(),
-        correo.trim().toLowerCase(),
-        telefono.trim(),
-        telefono2?.trim() || null,
-        direccion.trim(),
-      ]
-    );
+        nationalId: cedula.trim(),
+        email: correo.trim().toLowerCase(),
+        phonePrimary: telefono.trim(),
+        phoneSecondary: telefono2?.trim() || null,
+        addressLine1: direccion.trim(),
+      },
+    });
 
     return res.status(201).json({
       message: "Usuario guardado exitosamente",
       client: {
-        id: clientId,
+        id: client.id,
         nombre,
         cedula,
         direccion,
@@ -476,42 +472,28 @@ app.get("/api/clientes", requireAuth, async (req, res) => {
   try {
     const { id, estado } = req.query;
 
-    let sql = `
-  SELECT
-    id,
-    CONCAT(first_name, ' ', last_name) AS nombre,
-    national_id AS cedula,
-    address_line1 AS direccion,
-    email AS correo,
-    phone_primary AS telefono,
-    phone_secondary AS telefono2,
-    CASE
-      WHEN deleted_at IS NULL THEN 'activo'
-      ELSE 'inactivo'
-    END AS estado
-  FROM clients
-  WHERE 1=1
-`;
+    const where = {};
+    if (id) where.id = id;
+    if (estado === "activo") where.deletedAt = null;
+    if (estado === "inactivo") where.deletedAt = { not: null };
 
-    const params = [];
+    const clients = await prisma.client.findMany({
+      where,
+      orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
+    });
 
-    if (id) {
-      sql += ` AND id = ? `;
-      params.push(id);
-    }
-    if (estado === "activo") {
-      sql += ` AND deleted_at IS NULL `;
-    }
-
-    if (estado === "inactivo") {
-      sql += ` AND deleted_at IS NOT NULL `;
-    }
-
-    sql += ` ORDER BY first_name, last_name `;
-
-    const [rows] = await pool.execute(sql, params);
-
-    return res.json(rows);
+    return res.json(
+      clients.map((c) => ({
+        id: c.id,
+        nombre: `${c.firstName} ${c.lastName}`,
+        cedula: c.nationalId,
+        direccion: c.addressLine1,
+        correo: c.email,
+        telefono: c.phonePrimary,
+        telefono2: c.phoneSecondary,
+        estado: c.deletedAt === null ? "activo" : "inactivo",
+      }))
+    );
   } catch (error) {
     console.error("Error loading clients:", error);
 
@@ -521,36 +503,18 @@ app.get("/api/clientes", requireAuth, async (req, res) => {
   }
 });
 
-
-//DB de azure
-
 app.get("/db-check", async (req, res) => {
   try {
-    const [rows] = await pool.execute("SELECT NOW() AS now_time");
+    const rows = await prisma.$queryRaw`SELECT NOW() AS now_time`;
     res.json({ ok: true, rows });
   } catch (error) {
     console.error("DB CHECK ERROR:", error);
     res.status(500).json({
       ok: false,
       message: error.message,
-      code: error.code || null,
-      sqlMessage: error.sqlMessage || null,
     });
   }
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // =============================
 // REGISTER PET
@@ -565,68 +529,37 @@ app.post("/api/mascotas", requireAuth, async (req, res) => {
       });
     }
 
-    const [clients] = await pool.execute(
-      `
-      SELECT id
-      FROM clients
-      WHERE id = ?
-        AND deleted_at IS NULL
-      LIMIT 1
-      `,
-      [clienteId]
-    );
+    const client = await prisma.client.findFirst({
+      where: { id: clienteId, deletedAt: null },
+      select: { id: true },
+    });
 
-    if (clients.length === 0) {
+    if (!client) {
       return res.status(404).json({
         message: "Usuario no encontrado",
       });
     }
 
-    const petId = crypto.randomUUID();
-
     let sexValue = "UNKNOWN";
     if (sexo === "Macho") sexValue = "MALE";
     if (sexo === "Hembra") sexValue = "FEMALE";
 
-    const ageYears = parseInt(edad, 10);
-    const weightKg = parseFloat(peso);
-
-    await pool.execute(
-      `
-      INSERT INTO pets (
-        id,
-        client_id,
-        name,
-        breed,
-        sex,
-        age_years,
-        weight_kg,
-        weight_text,
-        observations,
-        deleted_at,
-        created_at,
-        updated_at
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NOW(), NOW())
-      `,
-      [
-        petId,
-        clienteId,
-        nombre.trim(),
-        raza.trim(),
-        sexValue,
-        ageYears,
-        weightKg,
-        String(peso),
-        observaciones || null,
-      ]
-    );
+    const pet = await prisma.pet.create({
+      data: {
+        clientId,
+        name: nombre.trim(),
+        breed: raza.trim(),
+        sex: sexValue,
+        ageYears: parseInt(edad, 10),
+        weightKg: parseFloat(peso),
+        weightText: String(peso),
+        observations: observaciones || null,
+      },
+    });
 
     return res.status(201).json({
       message: "Mascota guardada exitosamente.",
-      pet: {
-        id: petId,
-      },
+      pet: { id: pet.id },
     });
   } catch (error) {
     console.error("Error al guardar la mascota:", error);
@@ -641,24 +574,21 @@ app.put("/api/clientes/:id/toggle", requireAuth, async (req, res) => {
   const { id } = req.params;
 
   try {
-    const [rows] = await pool.execute(
-      `SELECT id, deleted_at FROM clients WHERE id = ? LIMIT 1`,
-      [id]
-    );
+    const cliente = await prisma.client.findUnique({
+      where: { id },
+      select: { id: true, deletedAt: true },
+    });
 
-    if (rows.length === 0) {
+    if (!cliente) {
       return res.status(404).json({
         message: "Usuario no encontrado",
       });
     }
 
-    const cliente = rows[0];
-
-    if (cliente.deleted_at === null) {
-      await pool.execute(`UPDATE clients SET deleted_at = NOW() WHERE id = ?`, [id]);
-    } else {
-      await pool.execute(`UPDATE clients SET deleted_at = NULL WHERE id = ?`, [id]);
-    }
+    await prisma.client.update({
+      where: { id },
+      data: { deletedAt: cliente.deletedAt === null ? new Date() : null },
+    });
 
     return res.json({
       message: "Estado actualizado",
@@ -676,17 +606,12 @@ app.put("/api/clientes/:id", requireAuth, async (req, res) => {
   const { nombre, cedula, direccion, correo, telefono, telefono2 } = req.body;
 
   try {
-    const [rows] = await pool.execute(
-      `
-      SELECT id
-      FROM clients
-      WHERE id = ?
-      LIMIT 1
-      `,
-      [id]
-    );
+    const existing = await prisma.client.findUnique({
+      where: { id },
+      select: { id: true },
+    });
 
-    if (rows.length === 0) {
+    if (!existing) {
       return res.status(404).json({
         message: "Usuario no encontrado",
       });
@@ -705,35 +630,23 @@ app.put("/api/clientes/:id", requireAuth, async (req, res) => {
       });
     }
 
-    const [existingCedula] = await pool.execute(
-      `
-      SELECT id
-      FROM clients
-      WHERE national_id = ?
-        AND id <> ?
-      LIMIT 1
-      `,
-      [cleanCedula, id]
-    );
+    const existingCedula = await prisma.client.findFirst({
+      where: { nationalId: cleanCedula, id: { not: id } },
+      select: { id: true },
+    });
 
-    if (existingCedula.length > 0) {
+    if (existingCedula) {
       return res.status(409).json({
         message: "Ya existe otro usuario con esa cédula",
       });
     }
 
-    const [existingCorreo] = await pool.execute(
-      `
-      SELECT id
-      FROM clients
-      WHERE email = ?
-        AND id <> ?
-      LIMIT 1
-      `,
-      [cleanCorreo, id]
-    );
+    const existingCorreo = await prisma.client.findFirst({
+      where: { email: cleanCorreo, id: { not: id } },
+      select: { id: true },
+    });
 
-    if (existingCorreo.length > 0) {
+    if (existingCorreo) {
       return res.status(409).json({
         message: "Ya existe otro cliente con ese correo",
       });
@@ -743,31 +656,18 @@ app.put("/api/clientes/:id", requireAuth, async (req, res) => {
     const firstName = nameParts[0];
     const lastName = nameParts.slice(1).join(" ") || "-";
 
-    await pool.execute(
-      `
-      UPDATE clients
-      SET
-        first_name = ?,
-        last_name = ?,
-        national_id = ?,
-        email = ?,
-        phone_primary = ?,
-        phone_secondary = ?,
-        address_line1 = ?,
-        updated_at = NOW()
-      WHERE id = ?
-      `,
-      [
+    await prisma.client.update({
+      where: { id },
+      data: {
         firstName,
         lastName,
-        cleanCedula,
-        cleanCorreo,
-        cleanTelefono,
-        cleanTelefono2 || null,
-        cleanDireccion,
-        id,
-      ]
-    );
+        nationalId: cleanCedula,
+        email: cleanCorreo,
+        phonePrimary: cleanTelefono,
+        phoneSecondary: cleanTelefono2 || null,
+        addressLine1: cleanDireccion,
+      },
+    });
 
     return res.json({
       message: "Usuario actualizado correctamente.",
@@ -788,57 +688,38 @@ app.get("/api/mascotas", requireAuth, async (req, res) => {
   try {
     const { id, clienteId, estado } = req.query;
 
-    let sql = `
-  SELECT
-    p.id,
-    p.client_id AS clienteId,
-    p.client_id,
-    p.name AS nombre,
-    p.name,
-    p.breed AS raza,
-    p.breed,
-    p.age_years AS edad,
-    p.age_years,
-    p.sex AS sexo,
-    p.weight_kg AS peso,
-    p.weight_kg,
-    p.observations AS observaciones,
-    c.first_name,
-    c.last_name,
-    CASE
-      WHEN p.deleted_at IS NULL THEN 'activo'
-      ELSE 'inactivo'
-    END AS estado
-  FROM pets p
-  JOIN clients c ON p.client_id = c.id
-  WHERE 1=1
-`;
+    const where = {};
+    if (id) where.id = id;
+    if (clienteId) where.clientId = clienteId;
+    if (estado === "activo") where.deletedAt = null;
+    if (estado === "inactivo") where.deletedAt = { not: null };
 
-    const params = [];
+    const pets = await prisma.pet.findMany({
+      where,
+      include: { client: { select: { firstName: true, lastName: true } } },
+      orderBy: { name: "asc" },
+    });
 
-    if (id) {
-      sql += ` AND p.id = ? `;
-      params.push(id);
-    }
-
-    if (clienteId) {
-      sql += ` AND p.client_id = ? `;
-      params.push(clienteId);
-    }
-
-    if (estado === "activo") {
-      sql += ` AND p.deleted_at IS NULL `;
-    }
-
-    if (estado === "inactivo") {
-      sql += ` AND p.deleted_at IS NOT NULL `;
-    }
-
-    sql += ` ORDER BY p.name `;
-
-    const [rows] = await pool.execute(sql, params);
-
-    return res.json(rows);
+    return res.json(
+      pets.map((p) => ({
+        id: p.id,
+        clienteId: p.clientId,
+        client_id: p.clientId,
+        nombre: p.name,
+        name: p.name,
+        raza: p.breed,
+        breed: p.breed,
+        edad: p.ageYears,
+        age_years: p.ageYears,
+        sexo: p.sex,
+        peso: p.weightKg,
+        weight_kg: p.weightKg,
+        observaciones: p.observations,
+        first_name: p.client.firstName,
+        last_name: p.client.lastName,
+        estado: p.deletedAt === null ? "activo" : "inactivo",
+      }))
+    );
   } catch (error) {
     console.error("Error al cargar las mascotas:", error);
 
@@ -852,24 +733,21 @@ app.put("/api/mascotas/:id/toggle", requireAuth, async (req, res) => {
   const { id } = req.params;
 
   try {
-    const [rows] = await pool.execute(
-      `SELECT id, deleted_at FROM pets WHERE id = ? LIMIT 1`,
-      [id]
-    );
+    const mascota = await prisma.pet.findUnique({
+      where: { id },
+      select: { id: true, deletedAt: true },
+    });
 
-    if (rows.length === 0) {
+    if (!mascota) {
       return res.status(404).json({
         message: "Mascota no encontrada",
       });
     }
 
-    const mascota = rows[0];
-
-    if (mascota.deleted_at === null) {
-      await pool.execute(`UPDATE pets SET deleted_at = NOW() WHERE id = ?`, [id]);
-    } else {
-      await pool.execute(`UPDATE pets SET deleted_at = NULL WHERE id = ?`, [id]);
-    }
+    await prisma.pet.update({
+      where: { id },
+      data: { deletedAt: mascota.deletedAt === null ? new Date() : null },
+    });
 
     return res.json({
       message: "Estado actualizado",
@@ -887,17 +765,12 @@ app.put("/api/mascotas/:id", requireAuth, async (req, res) => {
   const { nombre, edad, raza, sexo, peso, observaciones } = req.body;
 
   try {
-    const [rows] = await pool.execute(
-      `
-      SELECT id
-      FROM pets
-      WHERE id = ?
-      LIMIT 1
-      `,
-      [id]
-    );
+    const existing = await prisma.pet.findUnique({
+      where: { id },
+      select: { id: true },
+    });
 
-    if (rows.length === 0) {
+    if (!existing) {
       return res.status(404).json({
         message: "Mascota no encontrada",
       });
@@ -908,31 +781,18 @@ app.put("/api/mascotas/:id", requireAuth, async (req, res) => {
     if (sexo === "Hembra" || sexo === "FEMALE") sexValue = "FEMALE";
     if (!sexValue) sexValue = "UNKNOWN";
 
-    await pool.execute(
-      `
-      UPDATE pets
-      SET
-        name = ?,
-        breed = ?,
-        sex = ?,
-        age_years = ?,
-        weight_kg = ?,
-        weight_text = ?,
-        observations = ?,
-        updated_at = NOW()
-      WHERE id = ?
-      `,
-      [
-        nombre || null,
-        raza || null,
-        sexValue,
-        edad ? Number(edad) : null,
-        peso ? Number(peso) : null,
-        peso ? String(peso) : null,
-        observaciones || null,
-        id,
-      ]
-    );
+    await prisma.pet.update({
+      where: { id },
+      data: {
+        name: nombre || undefined,
+        breed: raza || null,
+        sex: sexValue,
+        ageYears: edad ? Number(edad) : null,
+        weightKg: peso ? Number(peso) : null,
+        weightText: peso ? String(peso) : null,
+        observations: observaciones || null,
+      },
+    });
 
     return res.json({
       message: "Mascota actualizada correctamente.",
@@ -947,26 +807,27 @@ app.put("/api/mascotas/:id", requireAuth, async (req, res) => {
 
 // =============================
 // GET DOCTORS
+// `id` is the underlying User id (role DOCTOR) so it lines up with
+// Consultation.doctorId / Appointment.doctorId, which reference users.id.
 // =============================
 app.get("/api/doctores", requireAuth, async (req, res) => {
   try {
-    const [rows] = await pool.execute(
-      `
-      SELECT
-        id,
-        user_id,
-        full_name AS nombre,
-        specialty,
-        license_number,
-        created_at,
-        updated_at
-      FROM doctors
-      WHERE deleted_at IS NULL
-      ORDER BY full_name
-      `
-    );
+    const doctors = await prisma.doctor.findMany({
+      where: { deletedAt: null },
+      orderBy: { fullName: "asc" },
+    });
 
-    return res.json(rows);
+    return res.json(
+      doctors.map((d) => ({
+        id: d.userId,
+        user_id: d.userId,
+        nombre: d.fullName,
+        specialty: d.specialty,
+        license_number: d.licenseNumber,
+        created_at: d.createdAt,
+        updated_at: d.updatedAt,
+      }))
+    );
   } catch (error) {
     console.error("Error loading doctors:", error);
 
@@ -981,27 +842,19 @@ app.get("/api/doctores", requireAuth, async (req, res) => {
 // =============================
 app.get("/api/tipos-consulta", requireAuth, async (req, res) => {
   try {
-    const [rows] = await pool.execute(
-      `
-      SELECT
-        id,
-        codigo,
-        nombre
-      FROM tipos_consulta
-      WHERE deleted_at IS NULL
-      ORDER BY nombre
-      `
-    );
+    const tipos = await prisma.tipoConsulta.findMany({
+      where: { deletedAt: null },
+      orderBy: { nombre: "asc" },
+      select: { id: true, codigo: true, nombre: true },
+    });
 
-    return res.json(rows);
+    return res.json(tipos);
   } catch (error) {
     console.error("Error loading tipos_consulta:", error);
 
     return res.status(500).json({
       message: "Error interno al cargar tipos de consulta.",
       error: error.message,
-      sqlMessage: error.sqlMessage || null,
-      code: error.code || null,
     });
   }
 });
@@ -1011,48 +864,32 @@ app.get("/api/tipos-consulta", requireAuth, async (req, res) => {
 // =============================
 app.get("/api/stats", requireAuth, async (req, res) => {
   try {
-    const [[clientesRow]] = await pool.execute(`
-      SELECT COUNT(*) AS total
-      FROM clients
-      WHERE deleted_at IS NULL
-    `);
+    const cutoff = new Date();
+    cutoff.setHours(0, 0, 0, 0);
+    cutoff.setDate(cutoff.getDate() + 3);
 
-    const [[mascotasRow]] = await pool.execute(`
-      SELECT COUNT(*) AS total
-      FROM pets
-      WHERE deleted_at IS NULL
-    `);
+    const [clientes, mascotas, consultas, alertas] = await Promise.all([
+      prisma.client.count({ where: { deletedAt: null } }),
+      prisma.pet.count({ where: { deletedAt: null } }),
+      prisma.consultation.count({ where: { deletedAt: null } }),
+      prisma.consultation.count({
+        where: {
+          deletedAt: null,
+          OR: [
+            { proximaCita: { not: null, lte: cutoff } },
+            { estado: "seguimiento" },
+          ],
+        },
+      }),
+    ]);
 
-    const [[consultasRow]] = await pool.execute(`
-      SELECT COUNT(*) AS total
-      FROM consultas
-      WHERE deleted_at IS NULL
-    `);
-
-    const [[alertasRow]] = await pool.execute(`
-      SELECT COUNT(*) AS total
-      FROM consultas
-      WHERE deleted_at IS NULL
-        AND (
-          (proxima_cita IS NOT NULL AND proxima_cita <= DATE_ADD(CURDATE(), INTERVAL 3 DAY))
-          OR estado = 'seguimiento'
-        )
-    `);
-
-    return res.json({
-      clientes: Number(clientesRow.total || 0),
-      mascotas: Number(mascotasRow.total || 0),
-      consultas: Number(consultasRow.total || 0),
-      alertas: Number(alertasRow.total || 0),
-    });
+    return res.json({ clientes, mascotas, consultas, alertas });
   } catch (error) {
     console.error("Error loading stats:", error);
 
     return res.status(500).json({
       message: "Error interno al cargar estadísticas.",
       error: error.message,
-      sqlMessage: error.sqlMessage || null,
-      code: error.code || null,
     });
   }
 });
@@ -1062,48 +899,20 @@ app.get("/api/stats", requireAuth, async (req, res) => {
 // =============================
 app.get("/api/alertas", requireAuth, async (req, res) => {
   try {
-    const [rows] = await pool.execute(`
-      SELECT
-        c.id,
-        c.pet_id,
-        c.client_id,
-        c.doctor_id,
-        c.fecha,
-        c.proxima_cita,
-        cl.email AS cliente_correo,
-        c.motivo,
-        c.diagnostico,
-        c.observaciones,
-        c.estado,
-        c.gravedad,
-
-        p.name AS mascota_nombre,
-        p.breed AS mascota_raza,
-
-        CONCAT(cl.first_name, ' ', cl.last_name) AS cliente_nombre,
-        cl.phone_primary AS cliente_telefono,
-
-        d.full_name AS doctor_nombre
-      FROM consultas c
-      INNER JOIN pets p
-        ON p.id = c.pet_id
-      INNER JOIN clients cl
-        ON cl.id = c.client_id
-      LEFT JOIN doctors d
-        ON d.id = c.doctor_id
-      WHERE c.deleted_at IS NULL
-        AND (
-          c.estado = 'seguimiento'
-          OR c.proxima_cita IS NOT NULL
-        )
-      ORDER BY
-        CASE
-          WHEN c.proxima_cita IS NULL THEN 1
-          ELSE 0
-        END,
-        c.proxima_cita ASC,
-        c.created_at DESC
-    `);
+    const consultas = await prisma.consultation.findMany({
+      where: {
+        deletedAt: null,
+        OR: [{ estado: "seguimiento" }, { proximaCita: { not: null } }],
+      },
+      include: {
+        pet: { select: { name: true, breed: true } },
+        client: { select: { firstName: true, lastName: true, phonePrimary: true } },
+        doctor: { select: { doctorProfile: { select: { fullName: true } } } },
+      },
+      // Postgres sorts NULLs last on ASC by default, matching the original
+      // "proxima_cita IS NULL last" ordering without an explicit CASE.
+      orderBy: [{ proximaCita: "asc" }, { createdAt: "desc" }],
+    });
 
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
@@ -1111,11 +920,11 @@ app.get("/api/alertas", requireAuth, async (req, res) => {
     const manana = new Date(hoy);
     manana.setDate(manana.getDate() + 1);
 
-    const alertas = rows.map((row) => {
+    const alertas = consultas.map((c) => {
       let categoria = "proximas";
 
-      if (row.proxima_cita) {
-        const cita = new Date(row.proxima_cita);
+      if (c.proximaCita) {
+        const cita = new Date(c.proximaCita);
         cita.setHours(0, 0, 0, 0);
 
         if (cita < hoy) {
@@ -1127,27 +936,27 @@ app.get("/api/alertas", requireAuth, async (req, res) => {
         } else {
           categoria = "proximas";
         }
-      } else if (row.estado === "seguimiento") {
+      } else if (c.estado === "seguimiento") {
         categoria = "proximas";
       }
 
       return {
-        id: row.id,
-        pet_id: row.pet_id,
-        client_id: row.client_id,
-        doctor_id: row.doctor_id,
-        fecha: row.fecha,
-        proxima_cita: row.proxima_cita,
-        motivo: row.motivo,
-        diagnostico: row.diagnostico,
-        observaciones: row.observaciones,
-        estado: row.estado,
-        gravedad: row.gravedad,
-        mascota_nombre: row.mascota_nombre,
-        mascota_raza: row.mascota_raza,
-        cliente_nombre: row.cliente_nombre,
-        cliente_telefono: row.cliente_telefono,
-        doctor_nombre: row.doctor_nombre,
+        id: c.id,
+        pet_id: c.petId,
+        client_id: c.clientId,
+        doctor_id: c.doctorId,
+        fecha: c.fecha,
+        proxima_cita: c.proximaCita,
+        motivo: c.motivo,
+        diagnostico: c.diagnostico,
+        observaciones: c.observaciones,
+        estado: c.estado,
+        gravedad: c.gravedad,
+        mascota_nombre: c.pet.name,
+        mascota_raza: c.pet.breed,
+        cliente_nombre: `${c.client.firstName} ${c.client.lastName}`,
+        cliente_telefono: c.client.phonePrimary,
+        doctor_nombre: c.doctor?.doctorProfile?.fullName ?? null,
         categoria,
       };
     });
@@ -1160,18 +969,13 @@ app.get("/api/alertas", requireAuth, async (req, res) => {
       total: alertas.length,
     };
 
-    return res.json({
-      resumen,
-      alertas,
-    });
+    return res.json({ resumen, alertas });
   } catch (error) {
     console.error("Error loading alertas:", error);
 
     return res.status(500).json({
       message: "No se pudieron cargar las alertas.",
       error: error.message,
-      sqlMessage: error.sqlMessage || null,
-      code: error.code || null,
     });
   }
 });
@@ -1180,38 +984,25 @@ app.put("/api/alertas/:id/quitar", requireAuth, async (req, res) => {
   const { id } = req.params;
 
   try {
-    const [exists] = await pool.execute(
-      `
-      SELECT id, estado
-      FROM consultas
-      WHERE id = ?
-        AND deleted_at IS NULL
-      LIMIT 1
-      `,
-      [id]
-    );
+    const consulta = await prisma.consultation.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true, estado: true },
+    });
 
-    if (exists.length === 0) {
+    if (!consulta) {
       return res.status(404).json({
         message: "Alerta no encontrada.",
       });
     }
 
-    await pool.execute(
-      `
-      UPDATE consultas
-      SET
-        proxima_cita = NULL,
-        motivo_seguimiento = NULL,
-        estado = CASE
-          WHEN estado = 'seguimiento' THEN 'cerrada'
-          ELSE estado
-        END,
-        updated_at = NOW()
-      WHERE id = ?
-      `,
-      [id]
-    );
+    await prisma.consultation.update({
+      where: { id },
+      data: {
+        proximaCita: null,
+        motivoSeguimiento: null,
+        estado: consulta.estado === "seguimiento" ? "cerrada" : consulta.estado,
+      },
+    });
 
     return res.json({
       message: "Alerta eliminada correctamente.",
@@ -1226,73 +1017,21 @@ app.put("/api/alertas/:id/quitar", requireAuth, async (req, res) => {
 
 // =============================
 // REGISTER CONSULTA
+// Clinical write — restricted to ADMIN/DOCTOR (secretary is read-only here).
 // =============================
-app.post("/api/consultas", requireAuth, upload.array("adjuntos", 10), async (req, res) => {
-  let connection;
-
-  try {
-    connection = await pool.getConnection();
-    await connection.beginTransaction();
-
-    const {
-      pet_id,
-      client_id,
-      doctor_id,
-      fecha,
-      hora,
-      motivo,
-      diagnostico,
-      observaciones,
-      estado,
-      gravedad,
-      proxima_cita,
-      motivo_seguimiento,
-      notas_medicacion,
-      notas_analisis,
-      lote_vacuna,
-      weight,
-      temp,
-      hr,
-      rr,
-      bp,
-      spo2,
-      meses_gestacion,
-      cantidad_crias,
-      riesgo_embarazo,
-      tipo_parto,
-      fecha_probable_parto,
-      observaciones_embarazo,
-    } = req.body;
-
-    const medicaciones = parseJsonArray(req.body.medicaciones);
-    const analisis = parseJsonArray(req.body.analisis);
-    const vacunas = parseJsonArray(req.body.vacunas);
-    const tiposConsulta = parseJsonArray(req.body.tipos_consulta);
-
-    if (!pet_id || !client_id || !doctor_id || !fecha || !motivo) {
-      await connection.rollback();
-      return res.status(400).json({
-        message: "Faltan campos obligatorios para guardar la consulta.",
-      });
-    }
-
-    const consultaId = crypto.randomUUID();
-    const fechaHora = hora ? `${fecha} ${hora}:00` : `${fecha} 00:00:00`;
-
-    const peso = toNullableNumber(weight);
-    const temperatura = toNullableNumber(temp);
-    const frecuenciaCardiaca = toNullableNumber(hr);
-    const frecuenciaRespiratoria = toNullableNumber(rr);
-    const presionArterial = bp ? String(bp) : null;
-    const saturacionOxigeno = toNullableNumber(spo2);
-
-    await connection.execute(
-      `INSERT INTO consultas (
-        id,
+app.post(
+  "/api/consultas",
+  requireAuth,
+  requireClinical,
+  upload.array("adjuntos", 10),
+  async (req, res) => {
+    try {
+      const {
         pet_id,
         client_id,
         doctor_id,
         fecha,
+        hora,
         motivo,
         diagnostico,
         observaciones,
@@ -1300,256 +1039,253 @@ app.post("/api/consultas", requireAuth, upload.array("adjuntos", 10), async (req
         gravedad,
         proxima_cita,
         motivo_seguimiento,
-        peso,
-        temperatura,
-        frecuencia_cardiaca,
-        frecuencia_respiratoria,
-        presion_arterial,
-        saturacion_oxigeno,
-        atraso_notificado_at,
-        recordatorio_manana_enviado_at,
-        deleted_at,
-        created_at,
-        updated_at
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NOW(), NOW())`,
-      [
-        consultaId,
-        pet_id,
-        client_id,
-        doctor_id,
-        fechaHora,
-        motivo,
-        diagnostico || null,
-        observaciones || null,
-        estado || "abierta",
-        gravedad || "moderada",
-        proxima_cita || null,
-        motivo_seguimiento || null,
-        peso,
-        temperatura,
-        frecuenciaCardiaca,
-        frecuenciaRespiratoria,
-        presionArterial,
-        saturacionOxigeno,
-      ]
-    );
+        notas_medicacion,
+        notas_analisis,
+        lote_vacuna,
+        weight,
+        temp,
+        hr,
+        rr,
+        bp,
+        spo2,
+        meses_gestacion,
+        cantidad_crias,
+        riesgo_embarazo,
+        tipo_parto,
+        fecha_probable_parto,
+      } = req.body;
 
-    if (Array.isArray(tiposConsulta) && tiposConsulta.length > 0) {
-      for (const tipoCodigo of tiposConsulta) {
-        const codigo = String(tipoCodigo || "").trim();
-        if (!codigo) continue;
+      const medicaciones = parseJsonArray(req.body.medicaciones);
+      const analisis = parseJsonArray(req.body.analisis);
+      const vacunas = parseJsonArray(req.body.vacunas);
+      const tiposConsulta = parseJsonArray(req.body.tipos_consulta);
 
-        const [tipoRows] = await connection.execute(
-          `
-          SELECT id
-          FROM tipos_consulta
-          WHERE codigo = ?
-            AND deleted_at IS NULL
-          LIMIT 1
-          `,
-          [codigo]
-        );
-
-        if (tipoRows.length === 0) continue;
-
-        const tipoId = tipoRows[0].id;
-
-        await connection.execute(
-          `
-          INSERT INTO consulta_tipos (
-            id,
-            consulta_id,
-            tipo_consulta_id,
-            deleted_at,
-            created_at,
-            updated_at
-          )
-          VALUES (?, ?, ?, NULL, NOW(), NOW())
-          `,
-          [crypto.randomUUID(), consultaId, tipoId]
-        );
+      if (!pet_id || !client_id || !doctor_id || !fecha || !motivo) {
+        return res.status(400).json({
+          message: "Faltan campos obligatorios para guardar la consulta.",
+        });
       }
-    }
 
-    if (Array.isArray(tiposConsulta) && tiposConsulta.includes("emb")) {
-      await connection.execute(
-        `
-        INSERT INTO consulta_embarazo (
-          id,
-          consulta_id,
-          meses_gestacion,
-          cantidad_crias,
-          riesgo,
-          tipo_parto,
-          fecha_probable_parto,
-          observaciones_embarazo,
-          deleted_at,
-          created_at,
-          updated_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NOW(), NOW())
-        `,
-        [
-          crypto.randomUUID(),
-          consultaId,
-          meses_gestacion ? Number(meses_gestacion) : null,
-          cantidad_crias ? Number(cantidad_crias) : null,
-          riesgo_embarazo || "bajo",
-          tipo_parto || null,
-          fecha_probable_parto || null,
-          observaciones_embarazo || null,
-        ]
-      );
-    }
+      const fechaHora = new Date(`${fecha}T${hora || "00:00"}:00`);
 
-    if (Array.isArray(medicaciones) && medicaciones.length > 0) {
-      for (const medicamento of medicaciones) {
-        const valor = String(medicamento || "").trim();
-        if (!valor) continue;
+      const consulta = await prisma.$transaction(async (tx) => {
+        const created = await tx.consultation.create({
+          data: {
+            petId: pet_id,
+            clientId: client_id,
+            doctorId: doctor_id,
+            fecha: fechaHora,
+            motivo,
+            diagnostico: diagnostico || null,
+            observaciones: observaciones || null,
+            estado: estado || "abierta",
+            gravedad: gravedad || "moderada",
+            proximaCita: proxima_cita ? new Date(proxima_cita) : null,
+            motivoSeguimiento: motivo_seguimiento || null,
+            peso: toNullableNumber(weight),
+            temperatura: toNullableNumber(temp),
+            frecuenciaCardiaca: toNullableNumber(hr),
+            frecuenciaRespiratoria: toNullableNumber(rr),
+            presionArterial: bp ? String(bp) : null,
+            saturacionOxigeno: toNullableNumber(spo2),
+          },
+        });
 
-        await connection.execute(
-          `
-          INSERT INTO consulta_medicaciones (
-            id,
-            consulta_id,
-            medicamento,
-            indicaciones,
-            deleted_at,
-            created_at,
-            updated_at
-          )
-          VALUES (?, ?, ?, ?, NULL, NOW(), NOW())
-          `,
-          [crypto.randomUUID(), consultaId, valor, notas_medicacion || null]
-        );
-      }
-    }
+        if (Array.isArray(tiposConsulta) && tiposConsulta.length > 0) {
+          for (const tipoCodigo of tiposConsulta) {
+            const codigo = String(tipoCodigo || "").trim();
+            if (!codigo) continue;
 
-    if (Array.isArray(analisis) && analisis.length > 0) {
-      for (const analisisItem of analisis) {
-        const valor = String(analisisItem || "").trim();
-        if (!valor) continue;
+            const tipo = await tx.tipoConsulta.findFirst({
+              where: { codigo, deletedAt: null },
+              select: { id: true },
+            });
+            if (!tipo) continue;
 
-        await connection.execute(
-          `
-          INSERT INTO consulta_analisis (
-            id,
-            consulta_id,
-            analisis,
-            resultado_observacion,
-            deleted_at,
-            created_at,
-            updated_at
-          )
-          VALUES (?, ?, ?, ?, NULL, NOW(), NOW())
-          `,
-          [crypto.randomUUID(), consultaId, valor, notas_analisis || null]
-        );
-      }
-    }
+            await tx.consultationType.create({
+              data: { consultationId: created.id, tipoConsultaId: tipo.id },
+            });
+          }
+        }
 
-    if (Array.isArray(vacunas) && vacunas.length > 0) {
-      for (const vacuna of vacunas) {
-        // Accept either a plain string (legacy: just the vaccine name) or an
-        // object carrying the full carnet detail for that dose.
-        const item =
-          vacuna && typeof vacuna === "object" ? vacuna : { vacuna };
-        const valor = String(item.vacuna || "").trim();
-        if (!valor) continue;
+        if (Array.isArray(tiposConsulta) && tiposConsulta.includes("emb")) {
+          await tx.pregnancyConsultation.create({
+            data: {
+              consultationId: created.id,
+              mesesGestacion: meses_gestacion ? Number(meses_gestacion) : null,
+              cantidadCrias: cantidad_crias ? Number(cantidad_crias) : null,
+              riesgo: riesgo_embarazo || "bajo",
+              tipoParto: tipo_parto || null,
+              fechaProbableParto: fecha_probable_parto
+                ? new Date(fecha_probable_parto)
+                : null,
+            },
+          });
+        }
 
-        await connection.execute(
-          `
-          INSERT INTO consulta_vacunas (
-            id,
-            consulta_id,
-            vacuna,
-            fecha_aplicacion,
-            fecha_refuerzo,
-            lote,
-            laboratorio,
-            veterinario,
-            lote_observaciones,
-            deleted_at,
-            created_at,
-            updated_at
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NOW(), NOW())
-          `,
-          [
-            crypto.randomUUID(),
-            consultaId,
-            valor,
-            item.fecha_aplicacion || null,
-            item.fecha_refuerzo || null,
-            item.lote || null,
-            item.laboratorio || null,
-            item.veterinario || null,
-            item.lote_observaciones || lote_vacuna || null,
-          ]
-        );
-      }
-    }
+        if (Array.isArray(medicaciones) && medicaciones.length > 0) {
+          for (const medicamento of medicaciones) {
+            const valor = String(medicamento || "").trim();
+            if (!valor) continue;
 
-    if (Array.isArray(req.files) && req.files.length > 0) {
-      for (const file of req.files) {
-        const publicPath = `/uploads/consultas/${file.filename}`;
+            await tx.medication.create({
+              data: {
+                consultationId: created.id,
+                medicamento: valor,
+                indicaciones: notas_medicacion || null,
+              },
+            });
+          }
+        }
 
-        await connection.execute(
-          `
-          INSERT INTO consulta_adjuntos (
-            id,
-            consulta_id,
-            nombre_archivo,
-            ruta_archivo,
-            tipo_archivo,
-            tamano_bytes,
-            deleted_at,
-            created_at,
-            updated_at
-          )
-          VALUES (?, ?, ?, ?, ?, ?, NULL, NOW(), NOW())
-          `,
-          [
-            crypto.randomUUID(),
-            consultaId,
-            file.originalname,
-            publicPath,
-            file.mimetype || null,
-            file.size || null,
-          ]
-        );
-      }
-    }
+        if (Array.isArray(analisis) && analisis.length > 0) {
+          for (const analisisItem of analisis) {
+            const valor = String(analisisItem || "").trim();
+            if (!valor) continue;
 
-    await connection.commit();
+            await tx.laboratoryAnalysis.create({
+              data: {
+                consultationId: created.id,
+                analisis: valor,
+                resultadoObservacion: notas_analisis || null,
+              },
+            });
+          }
+        }
 
-    return res.status(201).json({
-      message: "Consulta guardada correctamente.",
-      consulta: {
-        id: consultaId,
-        tipos_consulta: tiposConsulta,
-      },
-    });
-  } catch (error) {
-    if (connection) {
-      await connection.rollback();
-    }
+        if (Array.isArray(vacunas) && vacunas.length > 0) {
+          for (const vacuna of vacunas) {
+            const item = vacuna && typeof vacuna === "object" ? vacuna : { vacuna };
+            const valor = String(item.vacuna || "").trim();
+            if (!valor) continue;
 
-    console.error("Error saving consulta:", error);
+            await tx.vaccination.create({
+              data: {
+                consultationId: created.id,
+                vacuna: valor,
+                fechaAplicacion: item.fecha_aplicacion ? new Date(item.fecha_aplicacion) : null,
+                fechaRefuerzo: item.fecha_refuerzo ? new Date(item.fecha_refuerzo) : null,
+                lote: item.lote || null,
+                laboratorio: item.laboratorio || null,
+                veterinario: item.veterinario || null,
+                loteObservaciones: item.lote_observaciones || lote_vacuna || null,
+              },
+            });
+          }
+        }
 
-    return res.status(500).json({
-      message: "Error interno al guardar la consulta.",
-      error: error.message,
-      sqlMessage: error.sqlMessage || null,
-      code: error.code || null,
-    });
-  } finally {
-    if (connection) {
-      connection.release();
+        if (Array.isArray(req.files) && req.files.length > 0) {
+          for (const file of req.files) {
+            const publicPath = `/uploads/consultas/${file.filename}`;
+
+            await tx.attachment.create({
+              data: {
+                consultationId: created.id,
+                nombreArchivo: file.originalname,
+                rutaArchivo: publicPath,
+                tipoArchivo: file.mimetype || null,
+                tamanoBytes: file.size || null,
+              },
+            });
+          }
+        }
+
+        return created;
+      });
+
+      return res.status(201).json({
+        message: "Consulta guardada correctamente.",
+        consulta: { id: consulta.id, tipos_consulta: tiposConsulta },
+      });
+    } catch (error) {
+      console.error("Error saving consulta:", error);
+
+      return res.status(500).json({
+        message: "Error interno al guardar la consulta.",
+        error: error.message,
+      });
     }
   }
-});
+);
+
+// Shared shape used by the consulta detail endpoint, the pet clinical
+// history endpoint, and the client-portal equivalent.
+function serializeConsultaDetail(c) {
+  const tipos = (c.types || [])
+    .map((t) => t.tipoConsulta)
+    .filter(Boolean)
+    .sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+  return {
+    id: c.id,
+    pet_id: c.petId,
+    client_id: c.clientId,
+    doctor_id: c.doctorId,
+    visit_at: c.fecha,
+    reason: c.motivo,
+    diagnosis: c.diagnostico,
+    notes: c.observaciones,
+    estado: c.estado,
+    gravedad: c.gravedad,
+    proxima_cita: c.proximaCita,
+    motivo_seguimiento: c.motivoSeguimiento,
+    peso: c.peso,
+    temperatura: c.temperatura,
+    frecuencia_cardiaca: c.frecuenciaCardiaca,
+    frecuencia_respiratoria: c.frecuenciaRespiratoria,
+    presion_arterial: c.presionArterial,
+    saturacion_oxigeno: c.saturacionOxigeno,
+    doctor: c.doctor?.doctorProfile?.fullName ?? null,
+    tipos_consulta: tipos.map((t) => t.codigo),
+    tipos_consulta_detalle: tipos.map((t) => ({ id: t.id, codigo: t.codigo, nombre: t.nombre })),
+    treatment:
+      (c.medications || []).length > 0
+        ? c.medications.map((m) => m.medicamento).join(", ")
+        : null,
+    medicaciones: (c.medications || []).map((m) => ({
+      medicamento: m.medicamento,
+      indicaciones: m.indicaciones,
+    })),
+    analisis: (c.analyses || []).map((a) => ({
+      analisis: a.analisis,
+      resultado_observacion: a.resultadoObservacion,
+    })),
+    vacunas: (c.vaccinations || []).map((v) => ({
+      vacuna: v.vacuna,
+      fecha_aplicacion: v.fechaAplicacion,
+      fecha_refuerzo: v.fechaRefuerzo,
+      lote: v.lote,
+      laboratorio: v.laboratorio,
+      veterinario: v.veterinario,
+      lote_observaciones: v.loteObservaciones,
+    })),
+    adjuntos: (c.attachments || []).map((a) => ({
+      nombre_archivo: a.nombreArchivo,
+      ruta_archivo: a.rutaArchivo,
+      tipo_archivo: a.tipoArchivo,
+      tamano_bytes: a.tamanoBytes,
+    })),
+  };
+}
+
+const consultaDetailInclude = {
+  doctor: { select: { doctorProfile: { select: { fullName: true } } } },
+  types: { where: { deletedAt: null }, include: { tipoConsulta: true } },
+  medications: { where: { deletedAt: null }, orderBy: { createdAt: "asc" } },
+  analyses: { where: { deletedAt: null }, orderBy: { createdAt: "asc" } },
+  vaccinations: { where: { deletedAt: null }, orderBy: { createdAt: "asc" } },
+  attachments: { where: { deletedAt: null }, orderBy: { createdAt: "asc" } },
+};
+
+async function getConsultasByPet(petId) {
+  const consultas = await prisma.consultation.findMany({
+    where: { petId, deletedAt: null },
+    include: consultaDetailInclude,
+    orderBy: [{ fecha: "desc" }, { createdAt: "desc" }],
+  });
+
+  return consultas.map(serializeConsultaDetail);
+}
 
 // =============================
 // CONSULTATION ID
@@ -1558,133 +1294,29 @@ app.get("/api/consultas/:id", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
 
-    const [consultas] = await pool.execute(
-      `
-      SELECT
-        c.id,
-        c.pet_id,
-        c.client_id,
-        c.doctor_id,
-        c.fecha AS visit_at,
-        c.motivo AS reason,
-        c.diagnostico AS diagnosis,
-        c.observaciones AS notes,
-        c.estado,
-        c.gravedad,
-        c.proxima_cita,
-        c.motivo_seguimiento,
-        c.peso,
-        c.temperatura,
-        c.frecuencia_cardiaca,
-        c.frecuencia_respiratoria,
-        c.presion_arterial,
-        c.saturacion_oxigeno,
-        d.full_name AS doctor
-      FROM consultas c
-      LEFT JOIN doctors d
-        ON d.id = c.doctor_id
-      WHERE c.id = ?
-        AND c.deleted_at IS NULL
-      LIMIT 1
-      `,
-      [id]
-    );
+    const consulta = await prisma.consultation.findFirst({
+      where: { id, deletedAt: null },
+      include: consultaDetailInclude,
+    });
 
-    if (consultas.length === 0) {
+    if (!consulta) {
       return res.status(404).json({
         message: "Consulta no encontrada.",
       });
     }
 
-    const consulta = consultas[0];
-
-    const [tipos] = await pool.execute(
-      `
-      SELECT
-        tc.id,
-        tc.codigo,
-        tc.nombre
-      FROM consulta_tipos ct
-      INNER JOIN tipos_consulta tc
-        ON tc.id = ct.tipo_consulta_id
-      WHERE ct.consulta_id = ?
-        AND ct.deleted_at IS NULL
-        AND tc.deleted_at IS NULL
-      ORDER BY tc.nombre ASC
-      `,
-      [id]
-    );
-
-    const [medicaciones] = await pool.execute(
-      `
-      SELECT medicamento, indicaciones
-      FROM consulta_medicaciones
-      WHERE consulta_id = ?
-        AND deleted_at IS NULL
-      ORDER BY created_at ASC
-      `,
-      [id]
-    );
-
-    const [analisis] = await pool.execute(
-      `
-      SELECT analisis, resultado_observacion
-      FROM consulta_analisis
-      WHERE consulta_id = ?
-        AND deleted_at IS NULL
-      ORDER BY created_at ASC
-      `,
-      [id]
-    );
-
-    const [vacunas] = await pool.execute(
-      `
-      SELECT vacuna, fecha_aplicacion, fecha_refuerzo, lote, laboratorio, veterinario, lote_observaciones
-      FROM consulta_vacunas
-      WHERE consulta_id = ?
-        AND deleted_at IS NULL
-      ORDER BY created_at ASC
-      `,
-      [id]
-    );
-
-    const [adjuntos] = await pool.execute(
-      `
-      SELECT nombre_archivo, ruta_archivo, tipo_archivo, tamano_bytes
-      FROM consulta_adjuntos
-      WHERE consulta_id = ?
-        AND deleted_at IS NULL
-      ORDER BY created_at ASC
-      `,
-      [id]
-    );
-
-    return res.json({
-      ...consulta,
-      tipos_consulta: tipos.map((t) => t.codigo),
-      tipos_consulta_detalle: tipos,
-      treatment:
-        medicaciones.length > 0
-          ? medicaciones.map((m) => m.medicamento).join(", ")
-          : null,
-      medicaciones,
-      analisis,
-      vacunas,
-      adjuntos,
-    });
+    return res.json(serializeConsultaDetail(consulta));
   } catch (error) {
     console.error("Error loading consulta detail:", error);
 
     return res.status(500).json({
       message: "Error interno al cargar la consulta.",
       error: error.message,
-      sqlMessage: error.sqlMessage || null,
-      code: error.code || null,
     });
   }
 });
 
-app.put("/api/consultas/:id", requireAuth, async (req, res) => {
+app.put("/api/consultas/:id", requireAuth, requireClinical, async (req, res) => {
   const { id } = req.params;
 
   const {
@@ -1702,53 +1334,31 @@ app.put("/api/consultas/:id", requireAuth, async (req, res) => {
   } = req.body;
 
   try {
-    const [exists] = await pool.execute(
-      `
-      SELECT id
-      FROM consultas
-      WHERE id = ? AND deleted_at IS NULL
-      LIMIT 1
-      `,
-      [id]
-    );
+    const exists = await prisma.consultation.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true },
+    });
 
-    if (exists.length === 0) {
+    if (!exists) {
       return res.status(404).json({ message: "Consulta no encontrada." });
     }
 
-    await pool.execute(
-      `
-      UPDATE consultas
-      SET
-        doctor_id = ?,
-        pet_id = ?,
-        client_id = ?,
-        fecha = ?,
-        motivo = ?,
-        diagnostico = ?,
-        observaciones = ?,
-        estado = ?,
-        gravedad = ?,
-        proxima_cita = ?,
-        motivo_seguimiento = ?,
-        updated_at = NOW()
-      WHERE id = ?
-      `,
-      [
-        doctor_id || null,
-        pet_id || null,
-        client_id || null,
-        fecha || null,
-        motivo || null,
-        diagnostico || null,
-        observaciones || null,
-        estado || null,
-        gravedad || null,
-        proxima_cita || null,
-        motivo_seguimiento || null,
-        id,
-      ]
-    );
+    await prisma.consultation.update({
+      where: { id },
+      data: {
+        doctorId: doctor_id || null,
+        petId: pet_id || undefined,
+        clientId: client_id || undefined,
+        fecha: fecha ? new Date(fecha) : undefined,
+        motivo: motivo || undefined,
+        diagnostico: diagnostico || null,
+        observaciones: observaciones || null,
+        estado: estado || undefined,
+        gravedad: gravedad || undefined,
+        proximaCita: proxima_cita ? new Date(proxima_cita) : null,
+        motivoSeguimiento: motivo_seguimiento || null,
+      },
+    });
 
     return res.json({
       message: "Consulta actualizada correctamente.",
@@ -1761,32 +1371,23 @@ app.put("/api/consultas/:id", requireAuth, async (req, res) => {
   }
 });
 
-app.delete("/api/consultas/:id", requireAuth, async (req, res) => {
+app.delete("/api/consultas/:id", requireAuth, requireClinical, async (req, res) => {
   const { id } = req.params;
 
   try {
-    const [exists] = await pool.execute(
-      `
-      SELECT id
-      FROM consultas
-      WHERE id = ? AND deleted_at IS NULL
-      LIMIT 1
-      `,
-      [id]
-    );
+    const exists = await prisma.consultation.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true },
+    });
 
-    if (exists.length === 0) {
+    if (!exists) {
       return res.status(404).json({ message: "Consulta no encontrada." });
     }
 
-    await pool.execute(
-      `
-      UPDATE consultas
-      SET deleted_at = NOW(), updated_at = NOW()
-      WHERE id = ?
-      `,
-      [id]
-    );
+    await prisma.consultation.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
 
     return res.json({
       message: "Consulta eliminada correctamente.",
@@ -1812,112 +1413,7 @@ app.get("/api/mascotas/:mascotaId/consultas", requireAuth, async (req, res) => {
       });
     }
 
-    const [consultas] = await pool.execute(
-      `
-      SELECT
-        c.id,
-        c.fecha AS visit_at,
-        c.motivo AS reason,
-        c.diagnostico AS diagnosis,
-        c.observaciones AS notes,
-        c.estado,
-        c.gravedad,
-        c.proxima_cita,
-        c.motivo_seguimiento,
-        c.peso,
-        c.temperatura,
-        c.frecuencia_cardiaca,
-        c.frecuencia_respiratoria,
-        c.presion_arterial,
-        c.saturacion_oxigeno,
-        d.full_name AS doctor
-      FROM consultas c
-      LEFT JOIN doctors d ON d.id = c.doctor_id
-      WHERE c.pet_id = ?
-        AND c.deleted_at IS NULL
-      ORDER BY c.fecha DESC, c.created_at DESC
-      `,
-      [mascotaId]
-    );
-
-    const resultado = [];
-
-    for (const consulta of consultas) {
-      const [tipos] = await pool.execute(
-        `
-        SELECT
-          tc.id,
-          tc.codigo,
-          tc.nombre
-        FROM consulta_tipos ct
-        INNER JOIN tipos_consulta tc
-          ON tc.id = ct.tipo_consulta_id
-        WHERE ct.consulta_id = ?
-          AND ct.deleted_at IS NULL
-          AND tc.deleted_at IS NULL
-        ORDER BY tc.nombre ASC
-        `,
-        [consulta.id]
-      );
-
-      const [medicaciones] = await pool.execute(
-        `
-        SELECT medicamento, indicaciones
-        FROM consulta_medicaciones
-        WHERE consulta_id = ?
-          AND deleted_at IS NULL
-        ORDER BY created_at ASC
-        `,
-        [consulta.id]
-      );
-
-      const [analisis] = await pool.execute(
-        `
-        SELECT analisis, resultado_observacion
-        FROM consulta_analisis
-        WHERE consulta_id = ?
-          AND deleted_at IS NULL
-        ORDER BY created_at ASC
-        `,
-        [consulta.id]
-      );
-
-      const [vacunas] = await pool.execute(
-        `
-        SELECT vacuna, fecha_aplicacion, fecha_refuerzo, lote, laboratorio, veterinario, lote_observaciones
-        FROM consulta_vacunas
-        WHERE consulta_id = ?
-          AND deleted_at IS NULL
-        ORDER BY created_at ASC
-        `,
-        [consulta.id]
-      );
-
-      const [adjuntos] = await pool.execute(
-        `
-        SELECT nombre_archivo, ruta_archivo, tipo_archivo, tamano_bytes
-        FROM consulta_adjuntos
-        WHERE consulta_id = ?
-          AND deleted_at IS NULL
-        ORDER BY created_at ASC
-        `,
-        [consulta.id]
-      );
-
-      resultado.push({
-        ...consulta,
-        tipos_consulta: tipos.map((t) => t.codigo),
-        tipos_consulta_detalle: tipos,
-        treatment:
-          medicaciones.length > 0
-            ? medicaciones.map((m) => m.medicamento).join(", ")
-            : null,
-        medicaciones,
-        analisis,
-        vacunas,
-        adjuntos,
-      });
-    }
+    const resultado = await getConsultasByPet(mascotaId);
 
     return res.json(resultado);
   } catch (error) {
@@ -1926,8 +1422,6 @@ app.get("/api/mascotas/:mascotaId/consultas", requireAuth, async (req, res) => {
     return res.status(500).json({
       message: "Internal server error",
       error: error.message,
-      sqlMessage: error.sqlMessage || null,
-      code: error.code || null,
     });
   }
 });
@@ -1963,62 +1457,40 @@ app.post("/api/auth/register", requireAuth, requireAdmin, async (req, res) => {
       });
     }
 
-    const [existingUsers] = await pool.execute(
-      `
-      SELECT id
-      FROM users
-      WHERE username = ?
-        AND deleted_at IS NULL
-      LIMIT 1
-      `,
-      [cleanUsername]
-    );
+    const existingUser = await prisma.user.findFirst({
+      where: { username: cleanUsername, deletedAt: null },
+      select: { id: true },
+    });
 
-    if (existingUsers.length > 0) {
+    if (existingUser) {
       return res.status(409).json({
         message: "Username already exists.",
       });
     }
 
-    const userId = crypto.randomUUID();
     const passwordHash = await bcrypt.hash(cleanPassword, 10);
 
-    await pool.execute(
-      `
-      INSERT INTO users (
-        id,
-        username,
-        password_hash,
-        role,
-        deleted_at,
-        created_at,
-        updated_at
-      )
-      VALUES (?, ?, ?, ?, NULL, NOW(), NOW())
-      `,
-      [userId, cleanUsername, passwordHash, cleanRole]
-    );
+    const user = await prisma.user.create({
+      data: { username: cleanUsername, passwordHash, role: cleanRole },
+    });
 
     return res.status(201).json({
       message: "User registered successfully",
-      user: {
-        id: userId,
-        username: cleanUsername,
-        role: cleanRole,
-      },
+      user: { id: user.id, username: user.username, role: user.role },
     });
   } catch (error) {
     console.error("REGISTER ERROR:", error);
 
     return res.status(500).json({
       message: error.message,
-      code: error.code || null,
-      sqlMessage: error.sqlMessage || null,
     });
   }
 });
+
 // =============================
-// LOGIN USER
+// LOGIN
+// Tries staff (users table) first, then falls back to a client account
+// (clients table — only clients with a username/password_hash set can log in).
 // =============================
 app.post("/api/auth/login", authLimiter, async (req, res) => {
   try {
@@ -2030,45 +1502,60 @@ app.post("/api/auth/login", authLimiter, async (req, res) => {
       });
     }
 
-    const [rows] = await pool.execute(
-      `
-      SELECT id, username, password_hash, role
-      FROM users
-      WHERE username = ?
-        AND deleted_at IS NULL
-      LIMIT 1
-      `,
-      [username]
-    );
+    const staffUser = await prisma.user.findFirst({
+      where: { username, deletedAt: null },
+      select: { id: true, username: true, passwordHash: true, role: true },
+    });
 
-    if (rows.length === 0) {
+    if (staffUser) {
+      const valid = await bcrypt.compare(password, staffUser.passwordHash);
+
+      if (!valid) {
+        return res.status(401).json({
+          message: "Usuario o contraseña incorrectos.",
+        });
+      }
+
+      const token = jwt.sign(
+        { id: staffUser.id, username: staffUser.username, role: staffUser.role },
+        process.env.JWT_SECRET,
+        { expiresIn: "8h" }
+      );
+
+      return res.json({
+        token,
+        user: { id: staffUser.id, username: staffUser.username, role: staffUser.role },
+      });
+    }
+
+    const client = await prisma.client.findFirst({
+      where: { username, deletedAt: null, passwordHash: { not: null } },
+      select: { id: true, username: true, passwordHash: true },
+    });
+
+    if (!client) {
       return res.status(401).json({
         message: "Usuario o contraseña incorrectos.",
       });
     }
 
-    const user = rows[0];
-    const valid = await bcrypt.compare(password, user.password_hash);
+    const validClient = await bcrypt.compare(password, client.passwordHash);
 
-    if (!valid) {
+    if (!validClient) {
       return res.status(401).json({
         message: "Usuario o contraseña incorrectos.",
       });
     }
 
     const token = jwt.sign(
-      { id: user.id, username: user.username, role: user.role },
+      { id: client.id, username: client.username, role: "CLIENT", client_id: client.id },
       process.env.JWT_SECRET,
       { expiresIn: "8h" }
     );
 
     return res.json({
       token,
-      user: {
-        id: user.id,
-        username: user.username,
-        role: user.role,
-      },
+      user: { id: client.id, username: client.username, role: "CLIENT" },
     });
   } catch (error) {
     console.error("Login error:", error);
@@ -2079,113 +1566,33 @@ app.post("/api/auth/login", authLimiter, async (req, res) => {
   }
 });
 
-// =============================
-// EMAIL JOB - CONSULTAS ATRASADAS
-// =============================
-async function enviarCorreosConsultasAtrasadas() {
-  let connection;
-
-  try {
-    connection = await pool.getConnection();
-
-    const [rows] = await connection.execute(
-      `
-      SELECT
-        c.id,
-        c.fecha,
-        c.proxima_cita,
-        c.motivo,
-        c.estado,
-        c.client_id,
-        cl.email AS cliente_correo,
-        CONCAT(cl.first_name, ' ', cl.last_name) AS cliente_nombre,
-        p.name AS mascota_nombre
-      FROM consultas c
-      INNER JOIN clients cl
-        ON cl.id = c.client_id
-      INNER JOIN pets p
-        ON p.id = c.pet_id
-      WHERE c.deleted_at IS NULL
-        AND cl.deleted_at IS NULL
-        AND p.deleted_at IS NULL
-        AND c.proxima_cita IS NOT NULL
-        AND DATE(c.proxima_cita) < CURDATE()
-        AND c.atraso_notificado_at IS NULL
-        AND cl.email IS NOT NULL
-        AND TRIM(cl.email) <> ''
-      ORDER BY c.proxima_cita ASC
-      `
-    );
-
-    for (const row of rows) {
-      try {
-        await enviarCorreoConsulta({
-          connection,
-          row,
-          tipo: "atrasada",
-          marcarNotificado: true,
-        });
-
-        console.log(
-          `Correo enviado por consulta atrasada. Consulta: ${row.id}, email: ${row.cliente_correo}`
-        );
-      } catch (mailError) {
-        console.error(
-          `Error enviando correo de consulta atrasada ${row.id}:`,
-          mailError
-        );
-      }
-    }
-  } catch (error) {
-    console.error("Error revisando consultas atrasadas:", error);
-  } finally {
-    if (connection) {
-      connection.release();
-    }
-  }
-}
-
 app.post("/api/consultas/:id/enviar-recordatorio", requireAuth, async (req, res) => {
   const { id } = req.params;
 
-  let connection;
-
   try {
-    connection = await pool.getConnection();
+    const consulta = await prisma.consultation.findFirst({
+      where: { id, deletedAt: null },
+      include: { client: true, pet: true },
+    });
 
-    const [rows] = await connection.execute(
-      `
-      SELECT
-        c.id,
-        c.proxima_cita,
-        c.motivo,
-        cl.email AS cliente_correo,
-        CONCAT(cl.first_name, ' ', cl.last_name) AS cliente_nombre,
-        p.name AS mascota_nombre
-      FROM consultas c
-      INNER JOIN clients cl ON cl.id = c.client_id
-      INNER JOIN pets p ON p.id = c.pet_id
-      WHERE c.id = ?
-        AND c.deleted_at IS NULL
-        AND cl.email IS NOT NULL
-        AND TRIM(cl.email) <> ''
-      LIMIT 1
-      `,
-      [id]
-    );
-
-    if (rows.length === 0) {
+    if (!consulta || !consulta.client.email || !consulta.client.email.trim()) {
       return res.status(404).json({
         message: "Consulta no válida o sin correo.",
       });
     }
 
-    const row = rows[0];
+    const row = {
+      proxima_cita: consulta.proximaCita,
+      motivo: consulta.motivo,
+      cliente_correo: consulta.client.email,
+      cliente_nombre: `${consulta.client.firstName} ${consulta.client.lastName}`,
+      mascota_nombre: consulta.pet.name,
+    };
 
     const html = `
       <div style="font-family: Arial, Helvetica, sans-serif; background-color:#f5f7fa; padding:24px;">
         <div style="max-width:600px; margin:0 auto; background:#ffffff; border-radius:14px; overflow:hidden; border:1px solid #e5e7eb;">
-          
+
           <div style="padding:28px 32px 10px; text-align:center;">
             <img src="cid:logoVerde" width="72" alt="VetCare" style="display:block; margin:0 auto 12px;" />
             <h1 style="margin:0; font-size:28px; color:#2a9d8f; font-weight:700;">VetCare</h1>
@@ -2253,229 +1660,312 @@ app.post("/api/consultas/:id/enviar-recordatorio", requireAuth, async (req, res)
     return res.status(500).json({
       message: "Error enviando correo.",
     });
-  } finally {
-    if (connection) connection.release();
+  }
+});
+
+// =============================
+// APPOINTMENTS — shared helpers
+// Spanish estado/prioridad strings (the contract the frontend already
+// speaks) map onto the Prisma AppointmentStatus/AppointmentPriority enums.
+// =============================
+const ESTADO_TO_DB = {
+  PENDIENTE: "REQUESTED",
+  CONFIRMADA: "SCHEDULED",
+  CANCELADA: "CANCELLED",
+  COMPLETADA: "COMPLETED",
+};
+const ESTADO_FROM_DB = {
+  REQUESTED: "PENDIENTE",
+  SCHEDULED: "CONFIRMADA",
+  CANCELLED: "CANCELADA",
+  COMPLETED: "COMPLETADA",
+  NO_SHOW: "CANCELADA",
+};
+const PRIORIDAD_TO_DB = { NORMAL: "NORMAL", ALTA: "HIGH", URGENTE: "URGENT" };
+const PRIORIDAD_FROM_DB = { LOW: "NORMAL", NORMAL: "NORMAL", HIGH: "ALTA", URGENT: "URGENTE" };
+
+const appointmentInclude = { pet: true, client: true, appointmentType: true };
+
+function formatFechaHora(date) {
+  const d = new Date(date);
+  const pad = (n) => String(n).padStart(2, "0");
+  return {
+    fecha: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+    hora: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+  };
+}
+
+function parseFechaHora(fecha, hora) {
+  return new Date(`${fecha}T${hora || "00:00"}:00`);
+}
+
+function serializeAppointment(a) {
+  const { fecha, hora } = formatFechaHora(a.scheduledAt);
+  return {
+    id: a.id,
+    mascotaId: a.petId,
+    mascotaNombre: a.pet?.name,
+    clienteId: a.clientId,
+    clienteNombre: a.client ? `${a.client.firstName} ${a.client.lastName}` : undefined,
+    servicio: a.appointmentType?.name,
+    prioridad: PRIORIDAD_FROM_DB[a.priority] || "NORMAL",
+    fecha,
+    hora,
+    motivo: a.notes,
+    estado: ESTADO_FROM_DB[a.status] || "PENDIENTE",
+    doctorId: a.doctorId || undefined,
+    createdAt: a.createdAt,
+  };
+}
+
+// =============================
+// AGENDA (staff) — front-desk scheduling, all staff roles.
+// =============================
+app.get("/api/agenda/citas", requireAuth, requireStaff, async (req, res) => {
+  try {
+    const { estado, fecha } = req.query;
+    const where = { deletedAt: null };
+
+    if (estado && ESTADO_TO_DB[estado]) where.status = ESTADO_TO_DB[estado];
+
+    if (fecha) {
+      const dayStart = new Date(`${fecha}T00:00:00`);
+      const dayEnd = new Date(dayStart);
+      dayEnd.setDate(dayEnd.getDate() + 1);
+      where.scheduledAt = { gte: dayStart, lt: dayEnd };
+    }
+
+    const appointments = await prisma.appointment.findMany({
+      where,
+      include: appointmentInclude,
+      orderBy: { scheduledAt: "asc" },
+    });
+
+    return res.json(appointments.map(serializeAppointment));
+  } catch (error) {
+    console.error("Error loading agenda citas:", error);
+    return res.status(500).json({ message: "No se pudieron cargar las citas." });
+  }
+});
+
+app.post("/api/agenda/citas", requireAuth, requireStaff, async (req, res) => {
+  try {
+    const { mascotaId, servicio, prioridad, fecha, hora, motivo } = req.body;
+
+    if (!mascotaId || !servicio || !fecha || !hora) {
+      return res.status(400).json({ message: "Complete mascota, servicio, fecha y hora." });
+    }
+
+    const pet = await prisma.pet.findFirst({
+      where: { id: mascotaId, deletedAt: null },
+      select: { id: true, clientId: true },
+    });
+    if (!pet) return res.status(404).json({ message: "Mascota no encontrada." });
+
+    const appointmentType = await prisma.appointmentType.findFirst({
+      where: { name: servicio, deletedAt: null },
+    });
+    if (!appointmentType) return res.status(400).json({ message: "Servicio no válido." });
+
+    const appointment = await prisma.appointment.create({
+      data: {
+        petId: pet.id,
+        clientId: pet.clientId,
+        appointmentTypeId: appointmentType.id,
+        scheduledAt: parseFechaHora(fecha, hora),
+        status: "SCHEDULED",
+        priority: PRIORIDAD_TO_DB[prioridad] || "NORMAL",
+        notes: motivo || null,
+      },
+      include: appointmentInclude,
+    });
+
+    return res.status(201).json(serializeAppointment(appointment));
+  } catch (error) {
+    console.error("Error creando cita:", error);
+    return res.status(500).json({ message: "No se pudo crear la cita." });
+  }
+});
+
+app.patch("/api/agenda/citas/:id/confirmar", requireAuth, requireStaff, async (req, res) => {
+  try {
+    const { doctorId } = req.body || {};
+
+    const appointment = await prisma.appointment.findFirst({
+      where: { id: req.params.id, deletedAt: null },
+    });
+    if (!appointment) return res.status(404).json({ message: "Cita no encontrada." });
+
+    const updated = await prisma.appointment.update({
+      where: { id: appointment.id },
+      data: { status: "SCHEDULED", doctorId: doctorId || appointment.doctorId || null },
+      include: appointmentInclude,
+    });
+
+    return res.json(serializeAppointment(updated));
+  } catch (error) {
+    console.error("Error confirmando cita:", error);
+    return res.status(500).json({ message: "No se pudo confirmar la cita." });
+  }
+});
+
+app.patch("/api/agenda/citas/:id/cancelar", requireAuth, requireStaff, async (req, res) => {
+  try {
+    const appointment = await prisma.appointment.findFirst({
+      where: { id: req.params.id, deletedAt: null },
+    });
+    if (!appointment) return res.status(404).json({ message: "Cita no encontrada." });
+
+    const updated = await prisma.appointment.update({
+      where: { id: appointment.id },
+      data: { status: "CANCELLED" },
+      include: appointmentInclude,
+    });
+
+    return res.json(serializeAppointment(updated));
+  } catch (error) {
+    console.error("Error cancelando cita:", error);
+    return res.status(500).json({ message: "No se pudo cancelar la cita." });
+  }
+});
+
+app.patch("/api/agenda/citas/:id/completar", requireAuth, requireStaff, async (req, res) => {
+  try {
+    const appointment = await prisma.appointment.findFirst({
+      where: { id: req.params.id, deletedAt: null },
+    });
+    if (!appointment) return res.status(404).json({ message: "Cita no encontrada." });
+
+    const updated = await prisma.appointment.update({
+      where: { id: appointment.id },
+      data: { status: "COMPLETED" },
+      include: appointmentInclude,
+    });
+
+    return res.json(serializeAppointment(updated));
+  } catch (error) {
+    console.error("Error completando cita:", error);
+    return res.status(500).json({ message: "No se pudo completar la cita." });
+  }
+});
+
+// Doctor's own schedule — confirmed/completed appointments assigned to them.
+app.get("/api/mi-agenda", requireAuth, requireClinical, async (req, res) => {
+  try {
+    const appointments = await prisma.appointment.findMany({
+      where: {
+        doctorId: req.user.id,
+        deletedAt: null,
+        status: { in: ["SCHEDULED", "COMPLETED"] },
+      },
+      include: appointmentInclude,
+      orderBy: { scheduledAt: "asc" },
+    });
+
+    return res.json(appointments.map(serializeAppointment));
+  } catch (error) {
+    console.error("Error loading mi agenda:", error);
+    return res.status(500).json({ message: "No se pudo cargar tu agenda." });
   }
 });
 
 // =============================
 // CLIENT PORTAL (scoped to the logged-in client)
-// Requires a CLIENT token that carries `client_id`. Until client auth is
-// wired up these endpoints return 403; the frontend handles that gracefully.
 // =============================
-function requireClient(req, res, next) {
-  if (!req.user || req.user.role !== "CLIENT" || !req.user.client_id) {
-    return res.status(403).json({
-      message: "Acceso exclusivo para clientes del portal.",
-    });
-  }
-  next();
-}
-
-// The logged-in client's own pets
 app.get("/api/portal/mascotas", requireAuth, requireClient, async (req, res) => {
   try {
-    const [rows] = await pool.execute(
-      `
-      SELECT
-        p.id,
-        p.name AS nombre,
-        p.species AS especie,
-        p.breed AS raza,
-        p.sex AS sexo,
-        p.age_years AS edad,
-        p.weight_kg AS peso,
-        p.weight_text,
-        p.observations AS observaciones
-      FROM pets p
-      WHERE p.client_id = ?
-        AND p.deleted_at IS NULL
-      ORDER BY p.name
-      `,
-      [req.user.client_id]
-    );
+    const pets = await prisma.pet.findMany({
+      where: { clientId: req.user.client_id, deletedAt: null },
+      orderBy: { name: "asc" },
+    });
 
-    return res.json(rows);
+    return res.json(
+      pets.map((p) => ({
+        id: p.id,
+        nombre: p.name,
+        especie: p.species,
+        raza: p.breed,
+        sexo: p.sex,
+        edad: p.ageYears,
+        peso: p.weightKg,
+        weight_text: p.weightText,
+        observaciones: p.observations,
+      }))
+    );
   } catch (error) {
     console.error("Error cargando mascotas del portal:", error);
     return res.status(500).json({ message: "Error interno del servidor." });
   }
 });
 
-// Detail of one of the client's own pets, including the vaccination card
-app.get(
-  "/api/portal/mascotas/:id",
-  requireAuth,
-  requireClient,
-  async (req, res) => {
-    try {
-      const [pets] = await pool.execute(
-        `
-        SELECT
-          p.id,
-          p.name AS nombre,
-          p.species AS especie,
-          p.breed AS raza,
-          p.sex AS sexo,
-          p.age_years AS edad,
-          p.birth_date AS fecha_nacimiento,
-          p.weight_kg AS peso,
-          p.weight_text,
-          p.observations AS observaciones,
-          p.health_status AS estado_salud
-        FROM pets p
-        WHERE p.id = ?
-          AND p.client_id = ?
-          AND p.deleted_at IS NULL
-        `,
-        [req.params.id, req.user.client_id]
-      );
-
-      if (pets.length === 0) {
-        return res.status(404).json({ message: "Mascota no encontrada." });
-      }
-
-      // Vaccination card: every dose recorded across this pet's consultations
-      const [carnet] = await pool.execute(
-        `
-        SELECT
-          cv.vacuna,
-          cv.fecha_aplicacion,
-          cv.fecha_refuerzo,
-          cv.lote,
-          cv.laboratorio,
-          cv.veterinario,
-          cv.lote_observaciones,
-          c.fecha AS fecha_consulta
-        FROM consulta_vacunas cv
-        JOIN consultas c ON c.id = cv.consulta_id
-        WHERE c.pet_id = ?
-          AND c.client_id = ?
-          AND cv.deleted_at IS NULL
-          AND c.deleted_at IS NULL
-        ORDER BY COALESCE(cv.fecha_aplicacion, c.fecha) DESC
-        `,
-        [req.params.id, req.user.client_id]
-      );
-
-      return res.json({ ...pets[0], carnet });
-    } catch (error) {
-      console.error("Error cargando mascota del portal:", error);
-      return res.status(500).json({ message: "Error interno del servidor." });
-    }
-  }
-);
-
-// Full clinical history for a pet (pet's consultations with their detail).
-// Shared shape with the staff endpoint /api/mascotas/:id/consultas.
-async function fetchConsultasByPet(petId) {
-  const [consultas] = await pool.execute(
-    `
-    SELECT
-      c.id,
-      c.fecha AS visit_at,
-      c.motivo AS reason,
-      c.diagnostico AS diagnosis,
-      c.observaciones AS notes,
-      c.estado,
-      c.gravedad,
-      c.proxima_cita,
-      c.motivo_seguimiento,
-      c.peso,
-      c.temperatura,
-      c.frecuencia_cardiaca,
-      c.frecuencia_respiratoria,
-      c.presion_arterial,
-      c.saturacion_oxigeno,
-      d.full_name AS doctor
-    FROM consultas c
-    LEFT JOIN doctors d ON d.id = c.doctor_id
-    WHERE c.pet_id = ?
-      AND c.deleted_at IS NULL
-    ORDER BY c.fecha DESC, c.created_at DESC
-    `,
-    [petId]
-  );
-
-  const resultado = [];
-
-  for (const consulta of consultas) {
-    const [tipos] = await pool.execute(
-      `
-      SELECT tc.id, tc.codigo, tc.nombre
-      FROM consulta_tipos ct
-      INNER JOIN tipos_consulta tc ON tc.id = ct.tipo_consulta_id
-      WHERE ct.consulta_id = ?
-        AND ct.deleted_at IS NULL
-        AND tc.deleted_at IS NULL
-      ORDER BY tc.nombre ASC
-      `,
-      [consulta.id]
-    );
-
-    const [medicaciones] = await pool.execute(
-      `
-      SELECT medicamento, indicaciones
-      FROM consulta_medicaciones
-      WHERE consulta_id = ? AND deleted_at IS NULL
-      ORDER BY created_at ASC
-      `,
-      [consulta.id]
-    );
-
-    const [analisis] = await pool.execute(
-      `
-      SELECT analisis, resultado_observacion
-      FROM consulta_analisis
-      WHERE consulta_id = ? AND deleted_at IS NULL
-      ORDER BY created_at ASC
-      `,
-      [consulta.id]
-    );
-
-    const [vacunas] = await pool.execute(
-      `
-      SELECT vacuna, fecha_aplicacion, fecha_refuerzo, lote, laboratorio, veterinario, lote_observaciones
-      FROM consulta_vacunas
-      WHERE consulta_id = ? AND deleted_at IS NULL
-      ORDER BY created_at ASC
-      `,
-      [consulta.id]
-    );
-
-    resultado.push({
-      ...consulta,
-      tipos_consulta: tipos.map((t) => t.codigo),
-      tipos_consulta_detalle: tipos,
-      treatment:
-        medicaciones.length > 0
-          ? medicaciones.map((m) => m.medicamento).join(", ")
-          : null,
-      medicaciones,
-      analisis,
-      vacunas,
+app.get("/api/portal/mascotas/:id", requireAuth, requireClient, async (req, res) => {
+  try {
+    const pet = await prisma.pet.findFirst({
+      where: { id: req.params.id, clientId: req.user.client_id, deletedAt: null },
     });
+
+    if (!pet) {
+      return res.status(404).json({ message: "Mascota no encontrada." });
+    }
+
+    const vaccinations = await prisma.vaccination.findMany({
+      where: {
+        deletedAt: null,
+        consultation: { petId: pet.id, clientId: req.user.client_id, deletedAt: null },
+      },
+      include: { consultation: { select: { fecha: true } } },
+    });
+
+    const carnet = vaccinations
+      .map((v) => ({
+        vacuna: v.vacuna,
+        fecha_aplicacion: v.fechaAplicacion,
+        fecha_refuerzo: v.fechaRefuerzo,
+        lote: v.lote,
+        laboratorio: v.laboratorio,
+        veterinario: v.veterinario,
+        lote_observaciones: v.loteObservaciones,
+        fecha_consulta: v.consultation.fecha,
+      }))
+      .sort(
+        (a, b) =>
+          new Date(b.fecha_aplicacion || b.fecha_consulta) -
+          new Date(a.fecha_aplicacion || a.fecha_consulta)
+      );
+
+    return res.json({
+      id: pet.id,
+      nombre: pet.name,
+      especie: pet.species,
+      raza: pet.breed,
+      sexo: pet.sex,
+      edad: pet.ageYears,
+      peso: pet.weightKg,
+      weight_text: pet.weightText,
+      observaciones: pet.observations,
+      carnet,
+    });
+  } catch (error) {
+    console.error("Error cargando mascota del portal:", error);
+    return res.status(500).json({ message: "Error interno del servidor." });
   }
+});
 
-  return resultado;
-}
-
-// The logged-in client's pet clinical history (ownership-checked)
 app.get(
   "/api/portal/mascotas/:id/consultas",
   requireAuth,
   requireClient,
   async (req, res) => {
     try {
-      const [owned] = await pool.execute(
-        `SELECT id FROM pets WHERE id = ? AND client_id = ? AND deleted_at IS NULL`,
-        [req.params.id, req.user.client_id]
-      );
-      if (owned.length === 0) {
+      const owned = await prisma.pet.findFirst({
+        where: { id: req.params.id, clientId: req.user.client_id, deletedAt: null },
+        select: { id: true },
+      });
+      if (!owned) {
         return res.status(404).json({ message: "Mascota no encontrada." });
       }
 
-      const consultas = await fetchConsultasByPet(req.params.id);
+      const consultas = await getConsultasByPet(req.params.id);
       return res.json(consultas);
     } catch (error) {
       console.error("Error cargando historial del portal:", error);
@@ -2484,30 +1974,110 @@ app.get(
   }
 );
 
-// The client's own profile
 app.get("/api/portal/perfil", requireAuth, requireClient, async (req, res) => {
   try {
-    const [rows] = await pool.execute(
-      `
-      SELECT
-        id, first_name, last_name, email,
-        phone_primary, phone_secondary,
-        address_line1, address_line2, city, province_state
-      FROM clients
-      WHERE id = ?
-        AND deleted_at IS NULL
-      `,
-      [req.user.client_id]
-    );
+    const client = await prisma.client.findFirst({
+      where: { id: req.user.client_id, deletedAt: null },
+    });
 
-    if (rows.length === 0) {
+    if (!client) {
       return res.status(404).json({ message: "Perfil no encontrado." });
     }
 
-    return res.json(rows[0]);
+    return res.json({
+      id: client.id,
+      first_name: client.firstName,
+      last_name: client.lastName,
+      email: client.email,
+      phone_primary: client.phonePrimary,
+      phone_secondary: client.phoneSecondary,
+      address_line1: client.addressLine1,
+    });
   } catch (error) {
     console.error("Error cargando perfil del portal:", error);
     return res.status(500).json({ message: "Error interno del servidor." });
+  }
+});
+
+// Citas — client-created requests, always start PENDIENTE (REQUESTED).
+app.get("/api/portal/citas", requireAuth, requireClient, async (req, res) => {
+  try {
+    const appointments = await prisma.appointment.findMany({
+      where: { clientId: req.user.client_id, deletedAt: null },
+      include: { pet: true, appointmentType: true },
+      orderBy: { scheduledAt: "desc" },
+    });
+
+    return res.json(appointments.map(serializeAppointment));
+  } catch (error) {
+    console.error("Error loading citas del portal:", error);
+    return res.status(500).json({ message: "No se pudieron cargar tus citas." });
+  }
+});
+
+app.post("/api/portal/citas", requireAuth, requireClient, async (req, res) => {
+  try {
+    const { mascotaId, servicio, prioridad, fecha, hora, motivo } = req.body;
+
+    if (!mascotaId || !servicio || !fecha || !hora) {
+      return res.status(400).json({ message: "Complete mascota, servicio, fecha y hora." });
+    }
+
+    const pet = await prisma.pet.findFirst({
+      where: { id: mascotaId, clientId: req.user.client_id, deletedAt: null },
+      select: { id: true },
+    });
+    if (!pet) return res.status(404).json({ message: "Mascota no encontrada." });
+
+    const appointmentType = await prisma.appointmentType.findFirst({
+      where: { name: servicio, deletedAt: null },
+    });
+    if (!appointmentType) return res.status(400).json({ message: "Servicio no válido." });
+
+    const appointment = await prisma.appointment.create({
+      data: {
+        petId: pet.id,
+        clientId: req.user.client_id,
+        appointmentTypeId: appointmentType.id,
+        scheduledAt: parseFechaHora(fecha, hora),
+        status: "REQUESTED",
+        priority: PRIORIDAD_TO_DB[prioridad] || "NORMAL",
+        notes: motivo || null,
+      },
+      include: { pet: true, appointmentType: true },
+    });
+
+    return res.status(201).json(serializeAppointment(appointment));
+  } catch (error) {
+    console.error("Error creando cita del portal:", error);
+    return res.status(500).json({ message: "No se pudo enviar la solicitud." });
+  }
+});
+
+app.patch("/api/portal/citas/:id/cancelar", requireAuth, requireClient, async (req, res) => {
+  try {
+    const appointment = await prisma.appointment.findFirst({
+      where: { id: req.params.id, clientId: req.user.client_id, deletedAt: null },
+    });
+    if (!appointment) return res.status(404).json({ message: "Cita no encontrada." });
+
+    if (
+      !["REQUESTED", "SCHEDULED"].includes(appointment.status) ||
+      appointment.scheduledAt < new Date()
+    ) {
+      return res.status(400).json({ message: "Esta cita ya no se puede cancelar." });
+    }
+
+    const updated = await prisma.appointment.update({
+      where: { id: appointment.id },
+      data: { status: "CANCELLED" },
+      include: { pet: true, appointmentType: true },
+    });
+
+    return res.json(serializeAppointment(updated));
+  } catch (error) {
+    console.error("Error cancelando cita del portal:", error);
+    return res.status(500).json({ message: "No se pudo cancelar la cita." });
   }
 });
 
@@ -2518,8 +2088,9 @@ cron.schedule("*/10 * * * *", async () => {
 });
 
 app.get("/{*any}", (req, res) => {
-  res.sendFile(path.join(distPath, "index.html"));
+  res.sendFile("index.html", { root: distPath });
 });
+
 // =============================
 // SERVER
 // =============================

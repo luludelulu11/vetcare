@@ -16,11 +16,41 @@ model User {
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
   consultations   Consultation[] @relation("DoctorConsultations")
+  appointments    Appointment[]  @relation("DoctorAppointments")
+  doctorProfile   Doctor?
 
   profilePhotoUrl String? @map("profile_photo_url")
   passwordChangedAt DateTime? @map("password_changed_at")
   passwordResetTokens PasswordResetToken[]
   @@map("users")
+}
+
+model Doctor {
+  id            String    @id @default(uuid())
+  userId        String    @unique @map("user_id")
+  fullName      String    @map("full_name")
+  specialty     String?
+  licenseNumber String?   @map("license_number")
+  deletedAt     DateTime? @map("deleted_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("doctors")
+}
+
+model TipoConsulta {
+  id        String    @id @default(uuid())
+  codigo    String    @unique
+  nombre    String
+  deletedAt DateTime? @map("deleted_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  types ConsultationType[]
+
+  @@map("tipos_consulta")
 }
 
 model Client {
@@ -32,6 +62,8 @@ model Client {
   phonePrimary   String?   @map("phone_primary")
   phoneSecondary String?   @map("phone_secondary")
   addressLine1   String?   @map("address_line1")
+  username       String?   @unique
+  passwordHash   String?   @map("password_hash")
   deletedAt      DateTime? @map("deleted_at")
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
@@ -128,6 +160,7 @@ model ConsultationType {
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
   consultation Consultation @relation(fields: [consultationId], references: [id])
+  tipoConsulta TipoConsulta @relation(fields: [tipoConsultaId], references: [id])
 
   @@map("consulta_tipos")
 }
@@ -228,6 +261,7 @@ enum AppointmentPriority {
 }
 
 enum AppointmentStatus {
+  REQUESTED
   SCHEDULED
   COMPLETED
   CANCELLED
@@ -250,8 +284,9 @@ model Appointment {
   petId             String              @map("pet_id")
   clientId          String              @map("client_id")
   appointmentTypeId String              @map("appointment_type_id")
+  doctorId          String?             @map("doctor_id")
   scheduledAt       DateTime            @map("scheduled_at")
-  status            AppointmentStatus   @default(SCHEDULED)
+  status            AppointmentStatus   @default(REQUESTED)
   priority          AppointmentPriority @default(NORMAL)
   isPetAggressive   Boolean             @default(false) @map("is_pet_aggressive")
   estimatedPrice    Decimal?            @map("estimated_price") @db.Decimal(10, 2)
@@ -263,6 +298,7 @@ model Appointment {
   pet             Pet             @relation(fields: [petId], references: [id])
   client          Client          @relation(fields: [clientId], references: [id])
   appointmentType AppointmentType @relation(fields: [appointmentTypeId], references: [id])
+  doctor          User?           @relation("DoctorAppointments", fields: [doctorId], references: [id])
   groomingRecord  GroomingRecord?
   alerts          Alert[]
 

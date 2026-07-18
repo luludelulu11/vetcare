@@ -13,6 +13,7 @@ import HistorialMascota from "./pages/HistorialMascota.jsx";
 import ConsultaDetalle from "./pages/ConsultaDetalle.jsx";
 import RegistroCliente from "./pages/RegistroCliente.jsx";
 import Agenda from "./pages/Agenda.jsx";
+import MiAgenda from "./pages/MiAgenda.jsx";
 import { AuthProvider } from "./auth/AuthContext.jsx";
 import RequireRole from "./auth/RequireRole.jsx";
 
@@ -58,6 +59,14 @@ export default function App() {
             element={
               <RequireRole roles={STAFF_ROLES}>
                 <Agenda />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/mi-agenda"
+            element={
+              <RequireRole roles={CLINICAL_ROLES}>
+                <MiAgenda />
               </RequireRole>
             }
           />

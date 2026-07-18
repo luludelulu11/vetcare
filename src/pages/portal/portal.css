@@ -35,6 +35,69 @@
   flex-direction: column;
 }
 
+/* Dark mode — mirrors the app-wide palette in src/styles/variables.css so
+   the portal follows the same toggle as the staff console instead of
+   staying stuck in light. */
+:root[data-theme="dark"] .portal {
+  --brand: #4ba5c8;
+  --brand-dark: #2d7f95;
+  --brand-mid: #6cc0dd;
+  --surface: #17252c;
+  --cream: #0f181c;
+  --cream-tint: #1a282fdd;
+  --text-primary: #e8f1f2;
+  --text-secondary: #c3d5d7;
+  --text-tertiary: #7f979e;
+  --border-default: #263a43;
+  --coral: #e0906b;
+  --ok: #7fe0b8;
+  --ok-bg: #0e3a2a;
+  --warning: #e3b45e;
+  --warning-bg: #322a12;
+  --danger: #f3a0a0;
+  --danger-bg: #3d1414;
+  --neutral: #93a2b5;
+  --neutral-bg: #1b2b31;
+  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 6px 22px rgba(0, 0, 0, 0.45);
+}
+
+.portal__topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px 0;
+}
+
+.portal__brand {
+  font-family: "Playfair Display", serif;
+  font-weight: 600;
+  font-size: 18px;
+  color: var(--text-primary);
+}
+
+.portal__brand span {
+  color: var(--brand);
+}
+
+.portal__theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--border-default);
+  background: var(--surface);
+  color: var(--brand);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.portal__theme-toggle:hover {
+  background: var(--cream-tint);
+}
+
 .portal__content {
   flex: 1;
   padding: 22px 18px 96px;

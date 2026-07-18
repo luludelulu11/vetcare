@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { Home, PawPrint, CalendarDays, User } from "lucide-react";
+import { Home, PawPrint, CalendarDays, User, Moon, Sun } from "lucide-react";
+import useTheme from "../../hooks/useTheme";
 import "./portal.css";
 
 const TABS = [
@@ -10,8 +11,24 @@ const TABS = [
 ];
 
 export default function ClientLayout() {
+  const { theme, toggleTheme } = useTheme();
+
   return (
     <div className="portal">
+      <header className="portal__topbar">
+        <span className="portal__brand">
+          Vet<span>Care</span>
+        </span>
+        <button
+          type="button"
+          className="portal__theme-toggle"
+          aria-label={theme === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+          onClick={toggleTheme}
+        >
+          {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
+      </header>
+
       <main className="portal__content">
         <Outlet />
       </main>

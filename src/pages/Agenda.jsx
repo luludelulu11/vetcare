@@ -17,6 +17,7 @@ import {
   confirmarCita,
   cancelarCita,
   completarCita,
+  getDoctores,
 } from "../services/agendaService.js";
 
 const ESTADOS = {
@@ -63,6 +64,13 @@ export default function Agenda() {
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("pendientes");
   const [busyId, setBusyId] = useState(null);
+  const [doctores, setDoctores] = useState([]);
+
+  useEffect(() => {
+    getDoctores()
+      .then(setDoctores)
+      .catch(() => setDoctores([]));
+  }, []);
 
   const load = async () => {
     setStatus("loading");
@@ -141,6 +149,44 @@ export default function Agenda() {
     }
   };
 
+  const confirmar = async (cita) => {
+    const inputOptions = doctores.reduce((acc, d) => {
+      acc[d.id] = d.nombre;
+      return acc;
+    }, {});
+
+    const result = await Swal.fire({
+      title: "¿Confirmar esta cita?",
+      text: `${cita.servicio} · ${cita.mascotaNombre || "Mascota"} — ${formatFecha(
+        cita.fecha
+      )} ${cita.hora || ""}`,
+      icon: "question",
+      input: doctores.length > 0 ? "select" : undefined,
+      inputOptions,
+      inputPlaceholder: "Asignar doctor (opcional)",
+      showCancelButton: true,
+      confirmButtonText: "Confirmar",
+      cancelButtonText: "Volver",
+      confirmButtonColor: "#0f6e84",
+    });
+    if (!result.isConfirmed) return;
+
+    setBusyId(cita.id);
+    try {
+      await confirmarCita(cita.id, result.value || undefined);
+      await load();
+    } catch (e) {
+      Swal.fire({
+        title: "Error",
+        text: e.message,
+        icon: "error",
+        confirmButtonColor: "#0f6e84",
+      });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const actionsFor = (cita) => {
     const disabled = busyId === cita.id;
     if (cita.estado === "PENDIENTE") {
@@ -149,13 +195,7 @@ export default function Agenda() {
           <button
             className={`${styles.action} ${styles.actionPrimary}`}
             disabled={disabled}
-            onClick={() =>
-              runAction(cita, confirmarCita, {
-                title: "¿Confirmar esta cita?",
-                confirmText: "Confirmar",
-                tone: "ok",
-              })
-            }
+            onClick={() => confirmar(cita)}
           >
             <Check size={15} /> Confirmar
           </button>

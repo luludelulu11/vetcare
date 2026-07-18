@@ -29,7 +29,11 @@ export function vacunaStatus(fechaRefuerzo, now = new Date()) {
 // Pretty date for display; falls back to the raw value if unparseable.
 export function formatFecha(value) {
   if (!value) return null;
-  const d = new Date(value);
+  // Date-only strings ("YYYY-MM-DD") parse as UTC midnight, which can
+  // display as the previous day in timezones behind UTC — anchor to local
+  // midnight instead. Full timestamps parse as-is.
+  const isDateOnly = typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+  const d = new Date(isDateOnly ? `${value}T00:00:00` : value);
   if (Number.isNaN(d.getTime())) return String(value);
   return d.toLocaleDateString("es-ES", {
     day: "2-digit",
