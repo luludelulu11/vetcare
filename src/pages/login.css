@@ -183,6 +183,28 @@
   margin-bottom: 18px;
 }
 
+/* Two-column layout (used by the signup form). Row spacing comes from
+   each .vc-field's margin-bottom; columns get a gap here. */
+.vc-card--wide {
+  width: min(600px, 96vw);
+}
+
+.vc-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 16px;
+}
+
+.vc-form-grid .vc-field--full {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 560px) {
+  .vc-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .vc-field label {
   display: block;
   font-size: 11px;
