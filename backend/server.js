@@ -7,11 +7,18 @@ import crypto from "crypto";
 import multer from "multer";
 import fs from "fs";
 import path from "path";
+import dns from "dns";
 import { fileURLToPath } from "url";
 import rateLimit from "express-rate-limit";
 import nodemailer from "nodemailer";
 import cron from "node-cron";
 import prisma from "./prisma/client.js";
+
+// Prefer IPv4 for outbound connections. Some container hosts (e.g. Railway)
+// have no working IPv6 egress, but DNS returns an IPv6 address first for
+// smtp.gmail.com — which made nodemailer fail with ENETUNREACH. This makes
+// dns.lookup (used by nodemailer's SMTP socket) return IPv4 addresses first.
+dns.setDefaultResultOrder("ipv4first");
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,6 +26,12 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, ".env") });
 
 const app = express();
+
+// Running behind Railway's (single) reverse proxy: trust the first hop so
+// req.ip reflects the real client IP for express-rate-limit, and the
+// X-Forwarded-For validation error goes away. Use a number (not `true`) so
+// rate-limit doesn't flag a permissive/spoofable trust-proxy setting.
+app.set("trust proxy", 1);
 
 // Comma-separated list of explicitly allowed origins (e.g. a custom domain),
 // on top of the Vercel/localhost patterns handled below.
@@ -123,6 +136,9 @@ const mailTransporter = nodemailer.createTransport({
   host: process.env.MAIL_HOST,
   port: Number(process.env.MAIL_PORT || 587),
   secure: String(process.env.MAIL_SECURE).toLowerCase() === "true",
+  // Force IPv4 for the SMTP socket — hosts without IPv6 egress (Railway)
+  // otherwise fail with ENETUNREACH when Gmail resolves to an IPv6 address.
+  family: 4,
   auth: {
     user: process.env.MAIL_USER,
     pass: process.env.MAIL_PASS,
