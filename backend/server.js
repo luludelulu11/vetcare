@@ -1431,7 +1431,7 @@ app.get("/api/mascotas/:mascotaId/consultas", requireAuth, async (req, res) => {
 // =============================
 app.post("/api/auth/register", requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { username, password, role } = req.body;
+    const { username, password, role, email } = req.body;
 
     if (!username || !password || !role) {
       return res.status(400).json({
@@ -1442,6 +1442,7 @@ app.post("/api/auth/register", requireAuth, requireAdmin, async (req, res) => {
     const cleanUsername = username.trim();
     const cleanPassword = password.trim();
     const cleanRole = role.trim().toUpperCase();
+    const cleanEmail = email ? String(email).trim().toLowerCase() : null;
 
     if (!cleanUsername || !cleanPassword || !cleanRole) {
       return res.status(400).json({
@@ -1468,10 +1469,23 @@ app.post("/api/auth/register", requireAuth, requireAdmin, async (req, res) => {
       });
     }
 
+    if (cleanEmail) {
+      const existingEmail = await prisma.user.findFirst({
+        where: { email: cleanEmail, deletedAt: null },
+        select: { id: true },
+      });
+
+      if (existingEmail) {
+        return res.status(409).json({
+          message: "Email already exists.",
+        });
+      }
+    }
+
     const passwordHash = await bcrypt.hash(cleanPassword, 10);
 
     const user = await prisma.user.create({
-      data: { username: cleanUsername, passwordHash, role: cleanRole },
+      data: { username: cleanUsername, email: cleanEmail, passwordHash, role: cleanRole },
     });
 
     return res.status(201).json({
@@ -1484,6 +1498,242 @@ app.post("/api/auth/register", requireAuth, requireAdmin, async (req, res) => {
     return res.status(500).json({
       message: error.message,
     });
+  }
+});
+
+// =============================
+// SIGNUP (public — client self-registration)
+// =============================
+app.post("/api/auth/signup", authLimiter, async (req, res) => {
+  try {
+    const { nombre, apellido, cedula, telefono, correo, password } = req.body;
+
+    if (!nombre || !apellido || !cedula || !telefono || !correo || !password) {
+      return res.status(400).json({
+        message: "Complete todos los campos requeridos.",
+      });
+    }
+
+    const cleanCedula = String(cedula).trim();
+    const cleanEmail = String(correo).trim().toLowerCase();
+    const cleanPassword = String(password).trim();
+
+    if (cleanPassword.length < 8) {
+      return res.status(400).json({
+        message: "La contraseña debe tener al menos 8 caracteres.",
+      });
+    }
+
+    const existingByCedula = await prisma.client.findFirst({
+      where: { nationalId: cleanCedula, deletedAt: null },
+      select: { id: true },
+    });
+
+    if (existingByCedula) {
+      return res.status(409).json({
+        message: "Ya existe una cuenta registrada con esa cédula.",
+      });
+    }
+
+    const existingByEmail = await prisma.client.findFirst({
+      where: { username: cleanEmail, deletedAt: null },
+      select: { id: true },
+    });
+
+    if (existingByEmail) {
+      return res.status(409).json({
+        message: "Ya existe una cuenta registrada con ese correo.",
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(cleanPassword, 10);
+
+    const client = await prisma.client.create({
+      data: {
+        firstName: String(nombre).trim(),
+        lastName: String(apellido).trim(),
+        nationalId: cleanCedula,
+        email: cleanEmail,
+        phonePrimary: String(telefono).trim(),
+        username: cleanEmail,
+        passwordHash,
+      },
+    });
+
+    const token = jwt.sign(
+      { id: client.id, username: client.username, role: "CLIENT", client_id: client.id },
+      process.env.JWT_SECRET,
+      { expiresIn: "8h" }
+    );
+
+    return res.status(201).json({
+      token,
+      user: { id: client.id, username: client.username, role: "CLIENT" },
+    });
+  } catch (error) {
+    console.error("Signup error:", error);
+
+    return res.status(500).json({
+      message: "No se pudo crear la cuenta.",
+    });
+  }
+});
+
+// =============================
+// FORGOT / RESET PASSWORD (public — works for staff and client accounts)
+// =============================
+function passwordResetEmailHtml(link) {
+  return `
+    <div style="font-family: Arial, Helvetica, sans-serif; background-color:#f5f7fa; padding:24px;">
+      <div style="max-width:600px; margin:0 auto; background:#ffffff; border-radius:14px; overflow:hidden; border:1px solid #e5e7eb;">
+        <div style="padding:28px 32px 10px; text-align:center;">
+          <img src="cid:logoVerde" width="72" alt="VetCare" style="display:block; margin:0 auto 12px;" />
+          <h1 style="margin:0; font-size:28px; color:#2a9d8f; font-weight:700;">VetCare</h1>
+        </div>
+        <div style="padding:24px 32px 32px; color:#1f2937; line-height:1.6;">
+          <h2 style="margin:0 0 16px; font-size:22px; color:#111827; text-align:center;">
+            Restablecer contraseña
+          </h2>
+          <p style="margin:0 0 18px;">
+            Recibimos una solicitud para restablecer la contraseña de tu cuenta VetCare.
+            Si fuiste tú, haz clic en el siguiente botón. Este enlace vence en 1 hora.
+          </p>
+          <div style="text-align:center; margin:28px 0;">
+            <a href="${link}" style="background:#2a9d8f; color:#ffffff; padding:12px 28px; border-radius:10px; text-decoration:none; font-weight:600;">
+              Restablecer contraseña
+            </a>
+          </div>
+          <p style="margin:0 0 16px; color:#6b7280; font-size:13px;">
+            Si no solicitaste esto, puedes ignorar este correo con seguridad.
+          </p>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+app.post("/api/auth/forgot-password", authLimiter, async (req, res) => {
+  const genericResponse = {
+    message:
+      "Si existe una cuenta con ese usuario, te enviaremos un correo con instrucciones.",
+  };
+
+  try {
+    const { username } = req.body;
+    if (!username) return res.status(400).json(genericResponse);
+
+    const staffUser = await prisma.user.findFirst({
+      where: { username, deletedAt: null },
+      select: { id: true, email: true },
+    });
+
+    const client = staffUser
+      ? null
+      : await prisma.client.findFirst({
+          where: { username, deletedAt: null },
+          select: { id: true, email: true },
+        });
+
+    const account = staffUser || client;
+    const email = account?.email;
+
+    if (account && email) {
+      const rawToken = crypto.randomBytes(32).toString("hex");
+      const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+      await prisma.passwordResetToken.create({
+        data: {
+          userId: staffUser ? account.id : null,
+          clientId: staffUser ? null : account.id,
+          tokenHash,
+          expiresAt,
+        },
+      });
+
+      const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+      const link = `${frontendUrl}/restablecer-contrasena?token=${rawToken}`;
+
+      console.log(`Password reset link for ${username}: ${link}`);
+
+      try {
+        await mailTransporter.sendMail({
+          from: process.env.MAIL_FROM,
+          to: email,
+          subject: "Restablecer tu contraseña de VetCare",
+          html: passwordResetEmailHtml(link),
+          attachments: [
+            {
+              filename: "logo-verde.png",
+              path: path.join(__dirname, "../public/logo-verde.png"),
+              cid: "logoVerde",
+            },
+          ],
+        });
+      } catch (mailError) {
+        console.error("Error sending password reset email:", mailError);
+      }
+    }
+
+    return res.json(genericResponse);
+  } catch (error) {
+    console.error("Forgot password error:", error);
+    return res.json(genericResponse);
+  }
+});
+
+app.post("/api/auth/reset-password", authLimiter, async (req, res) => {
+  try {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+      return res.status(400).json({ message: "Token y contraseña son requeridos." });
+    }
+
+    const cleanPassword = String(password).trim();
+    if (cleanPassword.length < 8) {
+      return res.status(400).json({
+        message: "La contraseña debe tener al menos 8 caracteres.",
+      });
+    }
+
+    const tokenHash = crypto.createHash("sha256").update(String(token)).digest("hex");
+
+    const resetToken = await prisma.passwordResetToken.findFirst({
+      where: { tokenHash, usedAt: null, expiresAt: { gt: new Date() } },
+    });
+
+    if (!resetToken) {
+      return res.status(400).json({
+        message: "El enlace de restablecimiento no es válido o ha expirado.",
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(cleanPassword, 10);
+
+    await prisma.$transaction(async (tx) => {
+      if (resetToken.userId) {
+        await tx.user.update({
+          where: { id: resetToken.userId },
+          data: { passwordHash, passwordChangedAt: new Date() },
+        });
+      } else if (resetToken.clientId) {
+        await tx.client.update({
+          where: { id: resetToken.clientId },
+          data: { passwordHash },
+        });
+      }
+
+      await tx.passwordResetToken.update({
+        where: { id: resetToken.id },
+        data: { usedAt: new Date() },
+      });
+    });
+
+    return res.json({ message: "Contraseña actualizada correctamente." });
+  } catch (error) {
+    console.error("Reset password error:", error);
+    return res.status(500).json({ message: "No se pudo restablecer la contraseña." });
   }
 });
 
@@ -1895,6 +2145,54 @@ app.get("/api/portal/mascotas", requireAuth, requireClient, async (req, res) => 
   } catch (error) {
     console.error("Error cargando mascotas del portal:", error);
     return res.status(500).json({ message: "Error interno del servidor." });
+  }
+});
+
+// The logged-in client registers one of their own pets.
+app.post("/api/portal/mascotas", requireAuth, requireClient, async (req, res) => {
+  try {
+    const { nombre, especie, raza, sexo, edad, peso, observaciones } = req.body;
+
+    if (!nombre || !String(nombre).trim()) {
+      return res.status(400).json({ message: "El nombre de la mascota es requerido." });
+    }
+
+    let sexValue = "UNKNOWN";
+    if (sexo === "Macho" || sexo === "MALE") sexValue = "MALE";
+    if (sexo === "Hembra" || sexo === "FEMALE") sexValue = "FEMALE";
+
+    let speciesValue = null;
+    if (especie === "Perro" || especie === "CANINE") speciesValue = "CANINE";
+    if (especie === "Gato" || especie === "FELINE") speciesValue = "FELINE";
+
+    const pet = await prisma.pet.create({
+      data: {
+        clientId: req.user.client_id,
+        name: String(nombre).trim(),
+        species: speciesValue,
+        breed: raza ? String(raza).trim() : null,
+        sex: sexValue,
+        ageYears: edad ? Number(edad) : null,
+        weightKg: peso ? Number(peso) : null,
+        weightText: peso ? String(peso) : null,
+        observations: observaciones ? String(observaciones).trim() : null,
+      },
+    });
+
+    return res.status(201).json({
+      id: pet.id,
+      nombre: pet.name,
+      especie: pet.species,
+      raza: pet.breed,
+      sexo: pet.sex,
+      edad: pet.ageYears,
+      peso: pet.weightKg,
+      weight_text: pet.weightText,
+      observaciones: pet.observations,
+    });
+  } catch (error) {
+    console.error("Error creando mascota del portal:", error);
+    return res.status(500).json({ message: "No se pudo registrar la mascota." });
   }
 });
 

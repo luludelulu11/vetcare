@@ -1,6 +1,9 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 import Login from "./pages/Login.jsx";
+import Signup from "./pages/Signup.jsx";
+import ForgotPassword from "./pages/ForgotPassword.jsx";
+import ResetPassword from "./pages/ResetPassword.jsx";
 import Menu from "./pages/Menu.jsx";
 import Clientes from "./pages/Clientes.jsx";
 import Mascotas from "./pages/Mascotas.jsx";
@@ -20,6 +23,7 @@ import RequireRole from "./auth/RequireRole.jsx";
 import ClientLayout from "./pages/portal/ClientLayout.jsx";
 import Inicio from "./pages/portal/Inicio.jsx";
 import MisMascotas from "./pages/portal/MisMascotas.jsx";
+import AgregarMascota from "./pages/portal/AgregarMascota.jsx";
 import MascotaDetalle from "./pages/portal/MascotaDetalle.jsx";
 import Perfil from "./pages/portal/Perfil.jsx";
 import MisCitas from "./pages/portal/MisCitas.jsx";
@@ -36,6 +40,9 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Login />} />
+          <Route path="/registrarse" element={<Signup />} />
+          <Route path="/olvide-contrasena" element={<ForgotPassword />} />
+          <Route path="/restablecer-contrasena" element={<ResetPassword />} />
 
           <Route
             path="/admin/register"
@@ -153,6 +160,7 @@ export default function App() {
           >
             <Route path="/inicio" element={<Inicio />} />
             <Route path="/mis-mascotas" element={<MisMascotas />} />
+            <Route path="/agregar-mascota" element={<AgregarMascota />} />
             <Route path="/mis-mascotas/:id" element={<MascotaDetalle />} />
             <Route path="/mis-mascotas/:id/carnet" element={<CarnetVacunacion />} />
             <Route path="/mis-mascotas/:id/historial" element={<HistorialClinico />} />

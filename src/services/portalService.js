@@ -41,6 +41,7 @@ async function send(path, method, body) {
 export const getMisMascotas = () => get("/mascotas");
 export const getMiMascota = (id) => get(`/mascotas/${id}`);
 export const getMiMascotaConsultas = (id) => get(`/mascotas/${id}/consultas`);
+export const crearMascota = (payload) => send("/mascotas", "POST", payload);
 export const getMiPerfil = () => get("/perfil");
 
 /* ---------- Citas ----------

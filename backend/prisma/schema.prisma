@@ -9,6 +9,7 @@ datasource db {
 model User {
   id              String    @id @default(uuid())
   username        String    @unique
+  email           String?   @unique
   passwordHash    String    @map("password_hash")
   role            String
   deletedAt       DateTime? @map("deleted_at")
@@ -73,6 +74,7 @@ model Client {
 
   appointments Appointment[]
   alerts Alert[]
+  passwordResetTokens PasswordResetToken[]
 
   @@map("clients")
 }
@@ -396,13 +398,15 @@ model LoginAttempt {
 
 model PasswordResetToken {
   id        String   @id @default(uuid())
-  userId    String   @map("user_id")
+  userId    String?  @map("user_id")
+  clientId  String?  @map("client_id")
   tokenHash String   @map("token_hash")
   expiresAt DateTime @map("expires_at")
   usedAt    DateTime? @map("used_at")
   createdAt DateTime @default(now()) @map("created_at")
 
-  user User @relation(fields: [userId], references: [id])
+  user   User?   @relation(fields: [userId], references: [id])
+  client Client? @relation(fields: [clientId], references: [id])
 
   @@map("password_reset_tokens")
 }
