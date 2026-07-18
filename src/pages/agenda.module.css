@@ -4,7 +4,8 @@
   --brand: #0f6e84;
   --brand-mid: #4ba5c8;
   --surface: #ffffff;
-  --cream: #fdf8f2;
+  /* Match the staff console's page background (variables.css --bg). */
+  --cream: #fcf9f5;
   --cream-tint: #fff6ea;
   --text-primary: #183a4a;
   --text-secondary: #285158;

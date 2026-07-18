@@ -6,7 +6,9 @@
   --brand-dark: #1f6b7a;
   --brand-mid: #4ba5c8;
   --surface: #ffffff;
-  --cream: #fdf8f2;
+  /* Match the staff console's page background (variables.css --bg) so every
+     role sees the same backdrop in light mode. */
+  --cream: #fcf9f5;
   --cream-tint: #fff6ea;
   --text-primary: #183a4a;
   --text-secondary: #285158;
@@ -172,7 +174,13 @@
   box-shadow: var(--shadow-sm);
 }
 
-.portal-card + .portal-card {
+/* Consistent vertical rhythm between stacked cards and link-cards, in any
+   order (a plain .portal-card can follow a .pet-link and vice versa —
+   e.g. the "Historial clínico" link-card followed by the "Sin vacunas"
+   card on the pet detail page). */
+.portal-card + .portal-card,
+.pet-link + .portal-card,
+.portal-card + .pet-link {
   margin-top: 12px;
 }
 
