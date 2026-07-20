@@ -12,6 +12,7 @@ import { fileURLToPath } from "url";
 import rateLimit from "express-rate-limit";
 import nodemailer from "nodemailer";
 import { Resend } from "resend";
+import sgMail from "@sendgrid/mail";
 import cron from "node-cron";
 import prisma from "./prisma/client.js";
 
@@ -172,18 +173,30 @@ dns.promises
   });
 
 // Cloud hosts (Railway) commonly block outbound SMTP ports, so prefer an
-// HTTP email API (Resend, port 443) when configured; fall back to SMTP for
-// local dev. All email goes through sendEmail() so callers don't care which.
+// HTTP email API (port 443) when configured; fall back to SMTP for local dev.
+// SendGrid is the option that works WITHOUT owning a domain — verify a single
+// sender email (e.g. a Gmail address) and send to anyone. Resend needs a
+// verified domain to send to arbitrary recipients. All email goes through
+// sendEmail() so callers don't care which provider is active.
 const resendClient = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
   : null;
 
-// Public logo URL for email templates (Resend has no inline-CID attachments;
-// a hosted image works for both providers). Served from the deployed frontend.
+const sendgridEnabled = Boolean(process.env.SENDGRID_API_KEY);
+if (sendgridEnabled) sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
+// Public logo URL for email templates (the HTTP APIs have no inline-CID
+// attachments; a hosted image works for every provider). Served by the frontend.
 const LOGO_URL = `${process.env.FRONTEND_URL || "http://localhost:5173"}/logo-verde.png`;
 
 async function sendEmail({ to, subject, html }) {
   const from = process.env.MAIL_FROM || "VetCare <onboarding@resend.dev>";
+
+  if (sendgridEnabled) {
+    await sgMail.send({ to, from, subject, html });
+    if (process.env.NODE_ENV !== "test") console.log(`Email sent via SendGrid to ${to}`);
+    return;
+  }
 
   if (resendClient) {
     const { error } = await resendClient.emails.send({ from, to, subject, html });
